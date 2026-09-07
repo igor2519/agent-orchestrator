@@ -1,0 +1,37 @@
+{
+  "name": "eslint-config-custom",
+  "license": "MIT",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^16.3.4",
+    "@tanstack/eslint-plugin-query": "^5.102.8",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-config-turbo": "^2.10.12",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import-x": "^4.17.1",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-prettier": "^5.5.6",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-unicorn": "^74.0.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.70.0"
+  },
+  "lint-staged": {
+    "*.(js|ts)": "eslint --fix",
+    "*.(md|json)": "prettier --write"
+  },
+  "exports": {
+    ".": "./base.mjs",
+    "./base": "./base.mjs",
+    "./nest": "./nest.mjs",
+    "./next": "./next.mjs",
+    "./library": "./library.mjs",
+    "./react-internal": "./react-internal.mjs"
+  }
+}

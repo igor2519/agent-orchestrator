@@ -1,0 +1,52 @@
+/*
+ * Tailwind CSS v4 uses a CSS-first configuration; the former tailwind.config.js
+ * is expressed below. Preflight is deliberately not imported, which is the v4
+ * equivalent of the v3 `corePlugins: { preflight: false }` option.
+ */
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@source '../app';
+@source '../src';
+
+/* `exclude: base` replaces the v4 daisyUI `base: false` option */
+@plugin 'daisyui' {
+  themes: mytheme --default;
+  exclude: base;
+  root: ':root';
+  logs: false;
+}
+
+@plugin 'daisyui/theme' {
+  name: 'mytheme';
+  default: true;
+  --color-primary: #1f53a6;
+  --color-secondary: #ffffff;
+  --color-accent: #d4f8de;
+  --color-neutral: #ffffff;
+  --color-base-100: #fff;
+  --color-info: lightblue;
+  --color-success: #319060;
+  --color-warning: yellow;
+  --color-error: red;
+}
+
+html {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  margin: 0;
+  padding: 0;
+}
+*,
+*:before,
+*:after {
+  box-sizing: inherit;
+}
+.grecaptcha-badge {
+  visibility: hidden;
+}

@@ -1,0 +1,26 @@
+{
+  "name": "api-client",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "backend": "*",
+    "next": "^16.3.4"
+  },
+  "scripts": {
+    "gen:api-client:modules": "swagger-typescript-api generate -p ./swagger-spec.json -o ./src -t ./templates/modular --enum-style=union --modular --clean-output --disable-throw-on-error",
+    "gen:api-client:entry": "swagger-typescript-api generate -p ./swagger-spec.json -n index.ts -o ./src -t ./templates/default --enum-style=union",
+    "gen:api-client": "yarn gen:api-client:modules && yarn gen:api-client:entry"
+  },
+  "lint-staged": {
+    "*.(md|json|yml)": "prettier --write"
+  },
+  "devDependencies": {
+    "swagger-typescript-api": "^13.12.6"
+  }
+}

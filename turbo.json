@@ -1,0 +1,61 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    "**/.env"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ]
+    },
+    "backend#gen:api-client": {
+      "dependsOn": [
+        "backend#build"
+      ]
+    },
+    "api-client#gen:api-client": {
+      "dependsOn": [
+        "backend#gen:api-client"
+      ]
+    },
+    "gen:api-client": {},
+    "frontend#build": {
+      "dependsOn": [
+        "api-client#gen:api-client"
+      ]
+    },
+    "frontend#build:tsc-only": {
+      "dependsOn": [
+        "api-client#gen:api-client"
+      ]
+    },
+    "migration:run": {},
+    "lint": {},
+    "test": {
+      "dependsOn": [
+        "^test"
+      ],
+      "inputs": [
+        "src/**/*.spec.tsx",
+        "src/**/*.test.tsx",
+        "src/**/*.spec.ts",
+        "test/**/*.ts",
+        "test/**/*.json"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "deploy": {},
+    "docker:local": {
+      "cache": false
+    }
+  }
+}
