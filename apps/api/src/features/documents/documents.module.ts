@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { CustomerSettingsModule } from 'src/features/customer-settings/customer-settings.module';
+
 import { DocumentsController } from './documents.controller';
 import { DocumentsGateway } from './documents.gateway';
 import { Document } from './entities/document.entity';
@@ -14,7 +16,7 @@ import { DocumentTicketService } from './services/document-ticket.service';
 import { DocumentsService } from './services/documents.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Document, IdempotencyKey])],
+  imports: [TypeOrmModule.forFeature([Document, IdempotencyKey]), CustomerSettingsModule],
   controllers: [DocumentsController],
   providers: [
     DocumentsRepository,

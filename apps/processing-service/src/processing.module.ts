@@ -6,6 +6,7 @@ import { BaseDocumentProcessor } from './processing/base-document-processor';
 import { DocumentProcessorRegistry } from './processing/document-processor.registry';
 import { DOCUMENT_PROCESSORS } from './processing/processing.tokens';
 import { DeterministicDocumentProcessor } from './processing/processors/deterministic-document.processor';
+import { LinePrefixProcessor } from './processing/processors/line-prefix.processor';
 import { ProcessingResultsRepository } from './repositories/processing-results.repository';
 import { ProcessingService } from './services/processing.service';
 
@@ -14,7 +15,7 @@ import { ProcessingService } from './services/processing.service';
  * participates immediately. Order is precedence, so a type-specific processor
  * belongs before a catch-all.
  */
-const DOCUMENT_PROCESSOR_CLASSES = [DeterministicDocumentProcessor];
+const DOCUMENT_PROCESSOR_CLASSES = [LinePrefixProcessor, DeterministicDocumentProcessor];
 
 @Module({
   imports: [TypeOrmModule.forFeature([ProcessingResult])],

@@ -54,7 +54,7 @@ export class ProcessingService {
     });
 
     try {
-      const { result } = await processor.process({
+      const { result, resultText } = await processor.process({
         documentId,
         documentReference: payload.documentReference,
         documentType: payload.documentType,
@@ -81,7 +81,7 @@ export class ProcessingService {
         correlationId,
         causationId: envelope.id,
         attempt,
-        payload: { ...payload, processor: processor.name, result },
+        payload: { ...payload, processor: processor.name, result, resultText },
       });
 
       logger.log('Document processed', { processor: processor.name });

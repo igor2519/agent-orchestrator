@@ -10,9 +10,15 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Res,
   Sse,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiBody,
+  ApiConsumes,
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiHeader,
@@ -30,13 +36,19 @@ import { JoiValidationPipe } from '../common/pipes';
 
 import { DocumentAcceptedDto, ListDocumentsQueryDto, SubmitDocumentDto } from './dto';
 import { Document } from './entities/document.entity';
-import { listDocumentsSchema, submitDocumentSchema } from './joi-validations';
+import {
+  listDocumentsSchema,
+  submitDocumentSchema,
+  uploadDocumentSchema,
+  uploadedFileSchema,
+} from './joi-validations';
 import { DocumentStreamService } from './services/document-stream.service';
 import { DocumentTicketService } from './services/document-ticket.service';
 import { DocumentsService } from './services/documents.service';
 
-import type { ListDocumentsInput } from './joi-validations';
+import type { ListDocumentsInput, UploadDocumentInput } from './joi-validations';
 import type { MessageEvent } from '@nestjs/common';
+import type { Response } from 'express';
 import type { Observable } from 'rxjs';
 
 const IDEMPOTENCY_HEADER = 'idempotency-key';
@@ -102,6 +114,67 @@ export class DocumentsController {
   @Sse('stream')
   streamEvents(): Observable<MessageEvent> {
     return this.stream.asObservable().pipe(map((event) => ({ data: event })));
+  }
+
+  @ApiOperation({
+    summary: 'Upload a document file for processing',
+    description:
+      'Accepts PDF, TXT and Word files. The file is fingerprinted by its bytes, so ' +
+      're-uploading the same content is recognised and not processed twice.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        customerId: { type: 'string' },
+        documentReference: { type: 'string' },
+        notificationMode: { type: 'string', enum: ['WEBSOCKET', 'WEBHOOK', 'BOTH'] },
+      },
+      required: ['file', 'customerId'],
+    },
+  })
+  @ApiBadRequestResponse({ type: () => ValidationErrorDto })
+  @RequireApiKey()
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseInterceptors(FileInterceptor('file'))
+  @Post('upload')
+  upload(
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body(new JoiValidationPipe(uploadDocumentSchema)) body: UploadDocumentInput,
+    @Headers(IDEMPOTENCY_HEADER) idempotencyKey?: string,
+  ): Promise<DocumentAcceptedDto> {
+    if (!idempotencyKey?.trim()) {
+      throw new BadRequestException('Idempotency-Key header is required');
+    }
+
+    // Validated with the same pipe as any other input, so a rejected upload
+    // produces the field-keyed error shape clients already handle.
+    const validated = new JoiValidationPipe<Express.Multer.File>(uploadedFileSchema).transform(
+      file,
+    );
+
+    return this.documentsService.submitFile(validated, body, idempotencyKey.trim());
+  }
+
+  @ApiOperation({
+    summary: 'Download the processed result',
+    description: 'The link handed to customers in their completion notification.',
+  })
+  @ApiNotFoundResponse({ type: () => ErrorDto })
+  @RequireApiKey()
+  @Get(':id/result')
+  async downloadResult(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const { fileName, content } = await this.documentsService.getResult(id);
+
+    response.setHeader('content-type', 'text/plain; charset=utf-8');
+    response.setHeader('content-disposition', `attachment; filename="${fileName}"`);
+    response.send(content);
   }
 
   @ApiOperation({ summary: 'Fetch a document with its status, results and errors' })

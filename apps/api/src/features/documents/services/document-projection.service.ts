@@ -82,6 +82,7 @@ export class DocumentProjectionService {
           status: DocumentStatus.Completed,
           completedAt: now,
           processingResult: { processor: envelope.payload.processor, ...envelope.payload.result },
+          resultText: envelope.payload.resultText ?? null,
         };
 
       case EventType.DocumentProcessingFailed:

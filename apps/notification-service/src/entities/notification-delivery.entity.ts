@@ -25,7 +25,12 @@ export type DeliveryStatus = (typeof DeliveryStatus)[keyof typeof DeliveryStatus
  * succeeded" unanswerable.
  */
 @Entity({ name: 'notification_deliveries' })
-@Unique('uq_delivery_document_attempt_channel', ['documentId', 'documentAttempt', 'channel'])
+@Unique('uq_delivery_document_attempt_channel_event', [
+  'documentId',
+  'documentAttempt',
+  'channel',
+  'eventType',
+])
 @Index(['status', 'nextAttemptAt'])
 export class NotificationDelivery {
   @PrimaryGeneratedColumn('uuid')
@@ -49,6 +54,11 @@ export class NotificationDelivery {
   @Column({ name: 'callback_url', type: 'varchar', nullable: true })
   callbackUrl: string | null;
 
+  /**
+   * Part of the uniqueness key: telling a customer their file was already
+   * processed is a different notification from the original completion, even
+   * though both concern the same document and attempt.
+   */
   @Column({ name: 'event_type', length: 64 })
   eventType: string;
 

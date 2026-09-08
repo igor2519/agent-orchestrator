@@ -1,4 +1,5 @@
 import type { NotificationDelivery } from '../entities/notification-delivery.entity';
+import type { NotificationMode } from '@app/contracts';
 
 /**
  * The minimum a provider needs to decide whether it applies.
@@ -9,6 +10,8 @@ import type { NotificationDelivery } from '../entities/notification-delivery.ent
 export interface NotificationCandidate {
   callbackUrl?: string | null;
   eventType: string;
+  /** The customer's configured channels; providers opt out when not selected. */
+  notificationMode?: NotificationMode;
 }
 
 export const NotificationChannel = {

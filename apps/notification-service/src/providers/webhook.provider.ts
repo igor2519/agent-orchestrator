@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 
+import { NotificationMode } from '@app/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 
 import envConfig from '../config/env.config';
@@ -35,9 +36,16 @@ export class WebhookProvider extends BaseNotificationProvider {
     super();
   }
 
-  /** Nothing to deliver to without a callback target. */
+  /**
+   * Needs both a target and the customer's consent: WebSocket is the default, and
+   * a webhook only goes out when it was explicitly selected.
+   */
   supports(candidate: NotificationCandidate): boolean {
-    return Boolean(candidate.callbackUrl);
+    const selected =
+      candidate.notificationMode === NotificationMode.Webhook ||
+      candidate.notificationMode === NotificationMode.Both;
+
+    return selected && Boolean(candidate.callbackUrl);
   }
 
   async deliver(delivery: NotificationDelivery): Promise<NotificationDeliveryResult> {

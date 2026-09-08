@@ -9,16 +9,40 @@ export const EventType = {
   NotificationDelivered: 'NotificationDelivered',
   NotificationFailed: 'NotificationFailed',
   NotificationBroadcast: 'NotificationBroadcast',
+  DocumentDuplicateDetected: 'DocumentDuplicateDetected',
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];
+
+/**
+ * Which channels a customer wants to be told on.
+ *
+ * Travels on the event because the notification service owns its own database and
+ * cannot read the API's settings table.
+ */
+export const NotificationMode = {
+  Websocket: 'WEBSOCKET',
+  Webhook: 'WEBHOOK',
+  Both: 'BOTH',
+} as const;
+
+export type NotificationMode = (typeof NotificationMode)[keyof typeof NotificationMode];
+
+export interface UploadedFileInfo {
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+}
 
 export interface DocumentSubmittedPayload {
   customerId: string;
   documentReference: string;
   documentType: string;
-  /** SHA-256 of the canonical payload; identifies the file's content. */
+  /** SHA-256 of the file's bytes (or canonical payload); identifies the content. */
   contentHash: string;
+  notificationMode: NotificationMode;
+  /** Present when the document arrived as an uploaded file. */
+  file?: UploadedFileInfo;
   /** Inline synthetic payload. Mutually exclusive with `payloadUri`. */
   payload?: Record<string, unknown>;
   /** Reference to an externally stored payload. Mutually exclusive with `payload`. */
@@ -55,6 +79,32 @@ export interface DocumentProcessingStartedPayload {
 export interface DocumentProcessedPayload extends DocumentSubmittedPayload {
   processor: string;
   result: Record<string, unknown>;
+  /**
+   * The processed output.
+   *
+   * Carried on the event so the API can serve it as a downloadable file without
+   * reading the processing service's database. Text-sized by design; binary output
+   * would move to object storage with a reference here instead.
+   */
+  resultText?: string;
+}
+
+/**
+ * Emitted when a submission matched a file that was already processed.
+ *
+ * The customer still wants to be told, so this drives the same notification
+ * channels as a real outcome - without re-running the pipeline.
+ */
+export interface DocumentDuplicateDetectedPayload {
+  customerId: string;
+  documentReference: string;
+  documentType: string;
+  contentHash: string;
+  notificationMode: NotificationMode;
+  callbackUrl: string;
+  /** The document this submission was recognised as. */
+  originalDocumentId: string;
+  originalStatus: string;
 }
 
 export interface DocumentProcessingFailedPayload extends DocumentSubmittedPayload {
@@ -124,4 +174,5 @@ export interface EventPayloadMap {
   [EventType.NotificationDelivered]: NotificationDeliveredPayload;
   [EventType.NotificationFailed]: NotificationFailedPayload;
   [EventType.NotificationBroadcast]: NotificationBroadcastPayload;
+  [EventType.DocumentDuplicateDetected]: DocumentDuplicateDetectedPayload;
 }

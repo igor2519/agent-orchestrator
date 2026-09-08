@@ -12,6 +12,8 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
+import { CustomerSettingsService } from 'src/features/customer-settings/customer-settings.service';
+
 import { DocumentsRepository } from '../repositories/documents.repository';
 import { IdempotencyKeysRepository } from '../repositories/idempotency-keys.repository';
 
@@ -20,6 +22,7 @@ import { ContentHashService } from './content-hash.service';
 import type { DocumentAcceptedDto } from '../dto';
 import type { Document } from '../entities/document.entity';
 import type { ListDocumentsInput, SubmitDocumentInput } from '../joi-validations';
+import type { NotificationMode } from '@app/contracts';
 import type { PaginationResponseDto } from 'src/features/common/dto';
 
 const UNIQUE_VIOLATION = '23505';
@@ -34,6 +37,7 @@ export class DocumentsService {
     private readonly documents: DocumentsRepository,
     private readonly idempotencyKeys: IdempotencyKeysRepository,
     private readonly contentHashes: ContentHashService,
+    private readonly settings: CustomerSettingsService,
     private readonly outbox: OutboxService,
     private readonly logger: BaseLogger,
   ) {}
@@ -57,25 +61,19 @@ export class DocumentsService {
     // Content-level deduplication: the same file is processed once per customer,
     // however many times it is submitted and under whatever reference.
     const contentHash = this.contentHashes.hash(input);
-    const alreadyProcessed = await this.documents.findProcessableDuplicate(
-      input.customerId,
-      contentHash,
-    );
+    const settings = await this.settings.get(input.customerId);
+    const callbackUrl = input.callbackUrl ?? settings.callbackUrl;
+    const duplicate = await this.documents.findProcessableDuplicate(input.customerId, contentHash);
 
-    if (alreadyProcessed) {
-      this.logger.log('Submission matched an already-processed file, reusing it', {
-        correlationId: alreadyProcessed.correlationId,
-        documentId: alreadyProcessed.id,
+    if (duplicate) {
+      return this.announceDuplicate(duplicate, {
+        customerId: input.customerId,
+        documentReference: input.documentReference,
+        documentType: input.documentType,
         contentHash,
+        notificationMode: settings.notificationMode,
+        callbackUrl,
       });
-
-      return {
-        id: alreadyProcessed.id,
-        status: alreadyProcessed.status,
-        correlationId: alreadyProcessed.correlationId,
-        duplicate: true,
-        deduplicatedBy: 'CONTENT_HASH',
-      };
     }
 
     const correlationId = randomUUID();
@@ -88,8 +86,9 @@ export class DocumentsService {
           documentType: input.documentType,
           payload: input.payload ?? null,
           payloadUri: input.payloadUri ?? null,
-          callbackUrl: input.callbackUrl,
+          callbackUrl,
           contentHash,
+          notificationMode: settings.notificationMode,
           status: DocumentStatus.Received,
           correlationId,
           attempts: 1,
@@ -111,9 +110,10 @@ export class DocumentsService {
             documentReference: input.documentReference,
             documentType: input.documentType,
             contentHash,
+            notificationMode: settings.notificationMode,
             payload: input.payload,
             payloadUri: input.payloadUri,
-            callbackUrl: input.callbackUrl,
+            callbackUrl: callbackUrl ?? '',
           },
         });
 
@@ -142,6 +142,187 @@ export class DocumentsService {
 
       return concurrent;
     }
+  }
+
+  /**
+   * Tells the customer their file was already processed, without re-running it.
+   *
+   * The notification still goes out through their configured channels, because
+   * "we already have this" is an answer they asked for - silently returning the
+   * old document would leave a submission that never produced a callback.
+   */
+  private async announceDuplicate(
+    original: Document,
+    context: {
+      customerId: string;
+      documentReference: string;
+      documentType: string;
+      contentHash: string;
+      notificationMode: NotificationMode;
+      callbackUrl: string | null;
+    },
+  ): Promise<DocumentAcceptedDto> {
+    await this.dataSource.transaction(async (manager) => {
+      await this.outbox.enqueue(manager, {
+        type: EventType.DocumentDuplicateDetected,
+        documentId: original.id,
+        correlationId: original.correlationId,
+        payload: {
+          customerId: context.customerId,
+          documentReference: context.documentReference,
+          documentType: context.documentType,
+          contentHash: context.contentHash,
+          notificationMode: context.notificationMode,
+          callbackUrl: context.callbackUrl ?? '',
+          originalDocumentId: original.id,
+          originalStatus: original.status,
+        },
+      });
+    });
+
+    this.logger.log('Submission matched an already-processed file', {
+      correlationId: original.correlationId,
+      documentId: original.id,
+      contentHash: context.contentHash,
+    });
+
+    return {
+      id: original.id,
+      status: original.status,
+      correlationId: original.correlationId,
+      duplicate: true,
+      deduplicatedBy: 'CONTENT_HASH',
+    };
+  }
+
+  /**
+   * Accepts an uploaded file.
+   *
+   * The hash is taken over the raw bytes rather than a JSON rendering, so the same
+   * file re-uploaded under any name is recognised. The content itself is carried
+   * inline for the pipeline to read.
+   */
+  async submitFile(
+    file: Express.Multer.File,
+    input: { customerId: string; documentReference?: string; notificationMode?: NotificationMode },
+    idempotencyKey: string,
+  ): Promise<DocumentAcceptedDto> {
+    const contentHash = this.contentHashes.hashFile(file.buffer);
+    const settings = await this.settings.get(input.customerId);
+    const notificationMode = input.notificationMode ?? settings.notificationMode;
+    const documentReference = input.documentReference ?? file.originalname;
+    const documentType = DocumentsService.documentTypeFor(file.mimetype);
+
+    const duplicate = await this.documents.findProcessableDuplicate(input.customerId, contentHash);
+
+    if (duplicate) {
+      return this.announceDuplicate(duplicate, {
+        customerId: input.customerId,
+        documentReference,
+        documentType,
+        contentHash,
+        notificationMode,
+        callbackUrl: settings.callbackUrl,
+      });
+    }
+
+    const correlationId = randomUUID();
+    const fileInfo = {
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+    };
+
+    try {
+      const document = await this.dataSource.transaction(async (manager) => {
+        const saved = await this.documents.save(manager, {
+          customerId: input.customerId,
+          documentReference,
+          documentType,
+          payload: { contentBase64: file.buffer.toString('base64') },
+          payloadUri: null,
+          callbackUrl: settings.callbackUrl,
+          contentHash,
+          notificationMode,
+          fileName: fileInfo.fileName,
+          mimeType: fileInfo.mimeType,
+          fileSizeBytes: fileInfo.sizeBytes,
+          status: DocumentStatus.Received,
+          correlationId,
+          attempts: 1,
+        });
+
+        await this.idempotencyKeys.claim(manager, {
+          customerId: input.customerId,
+          key: idempotencyKey,
+          requestFingerprint: contentHash,
+          documentId: saved.id,
+        });
+
+        await this.outbox.enqueue(manager, {
+          type: EventType.DocumentSubmitted,
+          documentId: saved.id,
+          correlationId,
+          payload: {
+            customerId: input.customerId,
+            documentReference,
+            documentType,
+            contentHash,
+            notificationMode,
+            file: fileInfo,
+            payload: { contentBase64: file.buffer.toString('base64') },
+            callbackUrl: settings.callbackUrl ?? '',
+          },
+        });
+
+        return saved;
+      });
+
+      this.logger.log('File submitted', {
+        correlationId,
+        documentId: document.id,
+        fileName: fileInfo.fileName,
+        sizeBytes: fileInfo.sizeBytes,
+      });
+
+      return { id: document.id, status: document.status, correlationId, duplicate: false };
+    } catch (error) {
+      if (!isUniqueViolation(error)) {
+        throw error;
+      }
+
+      const concurrent = await this.idempotencyKeys.findByKey(input.customerId, idempotencyKey);
+      const existing = concurrent && (await this.documents.findById(concurrent.documentId));
+
+      if (!existing) {
+        throw error;
+      }
+
+      return {
+        id: existing.id,
+        status: existing.status,
+        correlationId: existing.correlationId,
+        duplicate: true,
+        deduplicatedBy: 'IDEMPOTENCY_KEY',
+      };
+    }
+  }
+
+  /** Maps an accepted upload's mime type onto the document type the pipeline routes on. */
+  private static documentTypeFor(mimeType: string): string {
+    if (mimeType === 'application/pdf') {
+      return 'pdf';
+    }
+
+    if (mimeType.startsWith('image/')) {
+      return 'image';
+    }
+
+    if (mimeType === 'text/plain') {
+      return 'text';
+    }
+
+    return 'word';
   }
 
   private async findReplay(
@@ -198,6 +379,19 @@ export class DocumentsService {
     return document;
   }
 
+  /** The processed output, rendered as a downloadable text file. */
+  async getResult(id: string): Promise<{ fileName: string; content: string }> {
+    const document = await this.findOne(id);
+
+    if (document.status !== DocumentStatus.Completed || document.resultText === null) {
+      throw new NotFoundException(`Document ${id} has no processed result yet`);
+    }
+
+    const base = (document.fileName ?? document.documentReference).replace(/\.[^.]+$/u, '');
+
+    return { fileName: `${base}.processed.txt`, content: document.resultText };
+  }
+
   async list(query: ListDocumentsInput): Promise<PaginationResponseDto<Document>> {
     const [data, total] = await this.documents.search(query);
 
@@ -246,9 +440,10 @@ export class DocumentsService {
           documentReference: document.documentReference,
           documentType: document.documentType,
           contentHash: document.contentHash,
+          notificationMode: document.notificationMode,
           payload: document.payload ?? undefined,
           payloadUri: document.payloadUri ?? undefined,
-          callbackUrl: document.callbackUrl,
+          callbackUrl: document.callbackUrl ?? '',
         },
       });
 

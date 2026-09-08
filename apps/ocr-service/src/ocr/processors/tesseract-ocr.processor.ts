@@ -1,8 +1,9 @@
-import { PermanentError, TransientError } from '@app/messaging';
+import { TransientError } from '@app/messaging';
 import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { createWorker } from 'tesseract.js';
 
 import { BaseOcrProcessor } from '../base-ocr-processor';
+import { resolveContent } from '../document-content';
 
 import type { OcrInput } from '../base-ocr-processor';
 import type { OcrOutcome } from '@app/contracts';
@@ -10,9 +11,6 @@ import type { Worker } from 'tesseract.js';
 
 /** Document types this engine claims. Anything else falls through to the next engine. */
 const SUPPORTED_TYPES = new Set(['image', 'scan', 'scanned-document', 'receipt-image']);
-
-const DATA_URL_PATTERN = /^data:image\/[a-z+]+;base64,/iu;
-const FETCH_TIMEOUT_MS = 15_000;
 
 /**
  * Real OCR via Tesseract.
@@ -38,7 +36,7 @@ export class TesseractOcrProcessor extends BaseOcrProcessor implements OnApplica
   }
 
   async extract(input: OcrInput): Promise<OcrOutcome> {
-    const image = await TesseractOcrProcessor.resolveImage(input);
+    const image = await resolveContent(input);
     const worker = await this.getWorker();
 
     try {
@@ -62,55 +60,6 @@ export class TesseractOcrProcessor extends BaseOcrProcessor implements OnApplica
         error,
       );
     }
-  }
-
-  /**
-   * Accepts a base64 payload (raw or as a data URL) or fetches `payloadUri`.
-   * Anything else is a caller error and will not become valid on retry.
-   */
-  private static async resolveImage(input: OcrInput): Promise<Buffer> {
-    const inline = input.payload?.imageBase64;
-
-    if (typeof inline === 'string' && inline.length > 0) {
-      const base64 = inline.replace(DATA_URL_PATTERN, '');
-
-      try {
-        return Buffer.from(base64, 'base64');
-      } catch {
-        throw new PermanentError('Payload imageBase64 is not valid base64', 'OCR_INVALID_IMAGE');
-      }
-    }
-
-    if (input.payloadUri) {
-      return TesseractOcrProcessor.fetchImage(input.payloadUri);
-    }
-
-    throw new PermanentError(
-      'Document has neither payload.imageBase64 nor payloadUri to read an image from',
-      'OCR_NO_IMAGE',
-    );
-  }
-
-  private static async fetchImage(uri: string): Promise<Buffer> {
-    let response: Response;
-
-    try {
-      response = await fetch(uri, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-    } catch (error) {
-      throw new TransientError(`Could not fetch ${uri}`, 'OCR_FETCH_FAILED', error);
-    }
-
-    if (!response.ok) {
-      // A 4xx will not change on retry; a 5xx might.
-      const permanent = response.status >= 400 && response.status < 500;
-      const message = `Fetching ${uri} returned HTTP ${response.status}`;
-
-      throw permanent
-        ? new PermanentError(message, 'OCR_FETCH_REJECTED')
-        : new TransientError(message, 'OCR_FETCH_FAILED');
-    }
-
-    return Buffer.from(await response.arrayBuffer());
   }
 
   /** Lazily starts one worker, and never two when calls overlap. */

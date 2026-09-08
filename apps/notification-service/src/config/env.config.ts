@@ -23,6 +23,8 @@ const envConfig = registerAs('env', () => ({
     relayMaxAttempts: toNumber(process.env.OUTBOX_RELAY_MAX_ATTEMPTS || '', 10),
   },
   maxProcessingAttempts: toNumber(process.env.MAX_PROCESSING_ATTEMPTS || '', 5),
+  /** Public base URL of the API, used to build the result link sent to customers. */
+  publicApiUrl: process.env.PUBLIC_API_URL || 'http://localhost:3001',
   webhook: {
     /** Customers verify this signature to prove the callback came from us. */
     signingSecret: process.env.WEBHOOK_SIGNING_SECRET || 'local-dev-secret',

@@ -20,6 +20,7 @@ export const RoutingKey = {
   NotificationDelivered: 'notification.delivered',
   NotificationFailed: 'notification.failed',
   NotificationBroadcast: 'notification.broadcast',
+  DocumentDuplicateDetected: 'document.duplicate-detected',
 
   OcrRetry: 'document.ocr.retry',
   ProcessingRetry: 'document.processing.retry',
@@ -39,6 +40,7 @@ export const ROUTING_KEY_BY_EVENT: Record<EventType, RoutingKey> = {
   [EventType.NotificationDelivered]: RoutingKey.NotificationDelivered,
   [EventType.NotificationFailed]: RoutingKey.NotificationFailed,
   [EventType.NotificationBroadcast]: RoutingKey.NotificationBroadcast,
+  [EventType.DocumentDuplicateDetected]: RoutingKey.DocumentDuplicateDetected,
 };
 
 export const Queue = {
@@ -62,6 +64,7 @@ export const QUEUE_BINDINGS: Record<Queue, readonly RoutingKey[]> = {
     RoutingKey.DocumentProcessed,
     RoutingKey.DocumentProcessingFailed,
     RoutingKey.DocumentValidationFailed,
+    RoutingKey.DocumentDuplicateDetected,
     RoutingKey.NotificationRetry,
   ],
   [Queue.ApiProjection]: [

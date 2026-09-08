@@ -1,4 +1,4 @@
-import { DocumentStatus, FailureReason } from '@app/contracts';
+import { DocumentStatus, FailureReason, NotificationMode } from '@app/contracts';
 import { ApiProperty } from '@nestjs/swagger';
 import { Column, Entity, Index } from 'typeorm';
 
@@ -48,9 +48,37 @@ export class Document extends AuditEntity {
   @Column({ name: 'payload_uri', type: 'varchar', nullable: true })
   payloadUri: string | null;
 
-  @ApiProperty()
-  @Column({ name: 'callback_url' })
-  callbackUrl: string;
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ name: 'callback_url', type: 'varchar', nullable: true })
+  callbackUrl: string | null;
+
+  @ApiProperty({ enum: NotificationMode, enumName: 'NotificationMode' })
+  @Column({ name: 'notification_mode', type: 'varchar', length: 16 })
+  notificationMode: NotificationMode;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Original name of an uploaded file',
+  })
+  @Column({ name: 'file_name', type: 'varchar', nullable: true })
+  fileName: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ name: 'mime_type', type: 'varchar', length: 128, nullable: true })
+  mimeType: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ name: 'file_size_bytes', type: 'int', nullable: true })
+  fileSizeBytes: number | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Processed output, served as a downloadable file',
+  })
+  @Column({ name: 'result_text', type: 'text', nullable: true })
+  resultText: string | null;
 
   @ApiProperty({ enum: DocumentStatus, enumName: 'DocumentStatus' })
   @Column({ type: 'varchar', length: 32, default: DocumentStatus.Received })

@@ -21,6 +21,7 @@ export class NotificationEventsController {
     EventType.DocumentProcessed,
     EventType.DocumentProcessingFailed,
     EventType.DocumentValidationFailed,
+    EventType.DocumentDuplicateDetected,
   )
   async onDocumentOutcome(context: EventContext): Promise<void> {
     await this.intake.queueDelivery(context);

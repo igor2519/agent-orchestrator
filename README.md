@@ -203,15 +203,50 @@ arrive live.
 Broadcasts are published from a **post-commit hook**, so nothing is announced for a
 transaction that rolled back. `GET /documents/stream` (SSE) remains for CLI use.
 
+## The upload flow
+
+```
+FE upload ──▶ API                       validate format (Joi: pdf/txt/doc/docx, 10MB)
+                │                       hash the bytes
+                ├── hash seen? ──yes──▶ DocumentDuplicateDetected ──▶ notify, don't reprocess
+                └── no ──▶ DocumentSubmitted
+                              ▼
+                            OCR      extract text (txt / pdf / docx / image)
+                              │      validate: non-empty, confident, no HTML
+                              ▼
+                        Processing   prefix every line with ++
+                              ▼
+                       Notification  WebSocket always, webhook when configured
+                                     payload carries a link to the result file
+```
+
+Settings live under **Webhook settings** in the UI (`PUT /customers/:id/settings`).
+WebSocket is the default and always on, so a customer who configures nothing still
+sees progress; a webhook URL is required before `WEBHOOK` or `BOTH` can be selected,
+enforced in the schema rather than only in the form.
+
+A duplicate still produces a notification. Silently returning the old document
+would leave a submission that never produced a callback, so
+`DocumentDuplicateDetected` drives the same channels with
+`status: ALREADY_PROCESSED` and a link to the existing result.
+
+The processed text travels on `DocumentProcessed` and the API serves it from
+`GET /documents/:id/result` as a download. That keeps database-per-service intact -
+no service reads another's storage - and is sized for text output; binary results
+would move to object storage with a reference on the event instead.
+
 ## OCR engines
 
 | Engine | Claims | Notes |
 |---|---|---|
-| `TesseractOcrProcessor` | `image`, `scan`, `scanned-document`, `receipt-image` | Real OCR via Tesseract.js; reads `payload.imageBase64` or fetches `payloadUri` |
+| `PlainTextProcessor` | `text` | Reads the bytes; no recognition needed, so confidence is 1 |
+| `PdfTextProcessor` | `pdf` | Extracts the text layer; a PDF without one is a scan and fails permanently |
+| `WordTextProcessor` | `word` | `.docx` via mammoth's raw text - not its HTML output, which the HTML rule would reject |
+| `TesseractOcrProcessor` | `image`, `scan`, … | Real OCR, for content that genuinely needs recognition |
 | `DeterministicOcrProcessor` | everything else | Reproducible stand-in |
 
-Order is precedence, so Tesseract takes image types and the deterministic engine is
-the fallback. The Tesseract worker is expensive to start (it downloads language data
+Order is precedence. Each format goes to the engine that reads it exactly, and
+Tesseract handles only what actually requires recognition. The Tesseract worker is expensive to start (it downloads language data
 on first use), so one is created lazily, reused, and terminated on shutdown; a
 recognition crash disposes it so the next attempt gets a fresh one. Failures are
 classified deliberately — a missing or corrupt image is permanent, a worker or fetch

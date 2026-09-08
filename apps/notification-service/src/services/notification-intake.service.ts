@@ -1,36 +1,61 @@
 import { EventType } from '@app/contracts';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
+import envConfig from '../config/env.config';
 import { NotificationProviderRegistry } from '../providers/notification-provider.registry';
 import { NotificationDeliveriesRepository } from '../repositories/notification-deliveries.repository';
 
+import type { NotificationCandidate } from '../providers/base-notification-provider';
+import type { AnyEventEnvelope } from '@app/contracts';
 import type { EventContext } from '@app/messaging';
+import type { ConfigType } from '@nestjs/config';
+
+/** Events a customer is told about. */
+const NOTIFIABLE = [
+  EventType.DocumentProcessed,
+  EventType.DocumentProcessingFailed,
+  EventType.DocumentValidationFailed,
+  EventType.DocumentDuplicateDetected,
+] as const;
+
+type NotifiableEvent = (typeof NOTIFIABLE)[number];
 
 /**
- * Step 3 of the pipeline: terminal outcome -> one delivery owed per channel.
+ * Narrows the envelope union to the events this service acts on.
+ *
+ * A predicate rather than a bare `includes`, so the compiler knows the payload has
+ * the customer fields all four notifiable events share.
+ */
+const isNotifiable = (
+  envelope: EventContext['envelope'],
+): envelope is Extract<AnyEventEnvelope, { type: NotifiableEvent }> =>
+  (NOTIFIABLE as readonly string[]).includes(envelope.type);
+
+/**
+ * Turns a notifiable outcome into one delivery owed per applicable channel.
  *
  * Intake deliberately performs no I/O: it runs inside the consumer's database
  * transaction, and holding one open across a request to a third party would tie
  * database health to customer endpoint latency. It records what is owed; the
- * worker and the providers do the sending.
+ * scheduler and providers do the sending.
  */
 @Injectable()
 export class NotificationIntakeService {
   constructor(
     private readonly deliveries: NotificationDeliveriesRepository,
     private readonly providers: NotificationProviderRegistry,
+    @Inject(envConfig.KEY) private readonly config: ConfigType<typeof envConfig>,
   ) {}
 
   async queueDelivery({ manager, envelope, logger }: EventContext): Promise<void> {
-    if (
-      envelope.type !== EventType.DocumentProcessed &&
-      envelope.type !== EventType.DocumentProcessingFailed &&
-      envelope.type !== EventType.DocumentValidationFailed
-    ) {
+    if (!isNotifiable(envelope)) {
       return;
     }
 
     const { documentId, correlationId, attempt, payload } = envelope;
+    const isDuplicate = envelope.type === EventType.DocumentDuplicateDetected;
+    const succeeded = envelope.type === EventType.DocumentProcessed;
+
     const body = {
       documentId,
       correlationId,
@@ -39,19 +64,30 @@ export class NotificationIntakeService {
       customerId: payload.customerId,
       documentReference: payload.documentReference,
       documentType: payload.documentType,
+      status: NotificationIntakeService.statusFor(envelope.type),
+      // The processed file is offered as a link rather than inlined, so a customer
+      // fetches it when they want it and the payload stays a fixed size.
+      resultUrl:
+        succeeded || isDuplicate
+          ? `${this.config.publicApiUrl}/documents/${documentId}/result`
+          : null,
+      duplicate: isDuplicate,
       data: payload,
     };
 
-    // Providers decide from the candidate itself - the webhook channel opts out
-    // when no callback was given.
-    const candidate = { callbackUrl: payload.callbackUrl, eventType: envelope.type };
+    const candidate: NotificationCandidate = {
+      callbackUrl: payload.callbackUrl,
+      eventType: envelope.type,
+      notificationMode: payload.notificationMode,
+    };
 
     for (const provider of this.providers.applicableTo(candidate)) {
-      const existing = await this.deliveries.findByDocumentAttemptChannel(
+      const existing = await this.deliveries.findExisting(
         manager,
         documentId,
         attempt,
         provider.channel,
+        envelope.type,
       );
 
       if (existing) {
@@ -66,12 +102,23 @@ export class NotificationIntakeService {
         correlationId,
         documentAttempt: attempt,
         channel: provider.channel,
-        callbackUrl: payload.callbackUrl ?? null,
+        callbackUrl: payload.callbackUrl || null,
         eventType: envelope.type,
         payload: body,
       });
 
-      logger.log('Delivery queued', { channel: provider.channel });
+      logger.log('Delivery queued', { channel: provider.channel, duplicate: isDuplicate });
+    }
+  }
+
+  private static statusFor(type: NotifiableEvent): string {
+    switch (type) {
+      case EventType.DocumentProcessed:
+        return 'COMPLETED';
+      case EventType.DocumentDuplicateDetected:
+        return 'ALREADY_PROCESSED';
+      default:
+        return 'FAILED';
     }
   }
 }

@@ -11,7 +11,13 @@ export interface ProcessingInput {
 }
 
 export interface ProcessingOutcome {
+  /** Summary metadata recorded against the document. */
   result: Record<string, unknown>;
+  /**
+   * The processed output itself, carried on the event so the API can serve it as a
+   * downloadable file without reading this service's database.
+   */
+  resultText?: string;
 }
 
 /**

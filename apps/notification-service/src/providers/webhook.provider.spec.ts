@@ -10,7 +10,7 @@ const config = {
 } as never;
 
 const delivery = (callbackUrl: string | null = 'https://example.test/hook') =>
-  ({ callbackUrl, payload: { a: 1 } }) as NotificationDelivery;
+  ({ callbackUrl, payload: { a: 1 } }) as unknown as NotificationDelivery;
 
 describe('WebhookProvider', () => {
   const provider = new WebhookProvider(config);
@@ -38,12 +38,44 @@ describe('WebhookProvider', () => {
     });
 
     it('opts out when there is no callback target', () => {
-      expect(provider.supports({ callbackUrl: null, eventType: 'DocumentProcessed' })).toBe(false);
+      expect(
+        provider.supports({
+          callbackUrl: null,
+          eventType: 'DocumentProcessed',
+          notificationMode: 'WEBHOOK',
+        }),
+      ).toBe(false);
     });
 
-    it('opts in when a callback URL is present', () => {
+    it('opts out when the customer did not select a webhook channel', () => {
+      // WEBSOCKET is the default; a stored callback URL alone must not start
+      // sending webhooks the customer never asked for.
       expect(
-        provider.supports({ callbackUrl: 'https://x.test/h', eventType: 'DocumentProcessed' }),
+        provider.supports({
+          callbackUrl: 'https://x.test/h',
+          eventType: 'DocumentProcessed',
+          notificationMode: 'WEBSOCKET',
+        }),
+      ).toBe(false);
+    });
+
+    it('opts in for WEBHOOK mode with a target', () => {
+      expect(
+        provider.supports({
+          callbackUrl: 'https://x.test/h',
+          eventType: 'DocumentProcessed',
+          notificationMode: 'WEBHOOK',
+        }),
+      ).toBe(true);
+    });
+
+    it('opts in for BOTH mode with a target', () => {
+      expect(
+        provider.supports({
+          callbackUrl: 'https://x.test/h',
+          eventType: 'DocumentProcessed',
+          notificationMode: 'BOTH',
+        }),
       ).toBe(true);
     });
   });

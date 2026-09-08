@@ -12,6 +12,7 @@ import envConfig from 'src/config/env.config';
 import { AuthModule } from 'src/features/auth/auth.module';
 import { PassportOptionsModule } from 'src/features/auth/passport-options.module';
 import { RequestContextMiddleware } from 'src/features/common/middleware/request-context.middleware';
+import { CustomerSettingsModule } from 'src/features/customer-settings/customer-settings.module';
 import { DocumentEventsController } from 'src/features/documents/controllers/document-events.controller';
 import { DocumentsModule } from 'src/features/documents/documents.module';
 import { DummyDataModule } from 'src/features/dummy-data/dummy-data.module';
@@ -48,6 +49,7 @@ import { AppService } from './app.service';
     UsersModule,
     DummyDataModule,
     DocumentsModule,
+    CustomerSettingsModule,
     MockReceiverModule,
     MessagingOpsModule,
     // The API consumes the same exchange purely to keep its read model current;

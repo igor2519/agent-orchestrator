@@ -18,6 +18,11 @@ import type { SubmitDocumentInput } from '../joi-validations';
  */
 @Injectable()
 export class ContentHashService {
+  /** Fingerprints raw file bytes, so the same file always yields the same hash. */
+  hashFile(buffer: Buffer): string {
+    return createHash('sha256').update(buffer).digest('hex');
+  }
+
   hash(input: Pick<SubmitDocumentInput, 'payload' | 'payloadUri'>): string {
     const canonical =
       input.payload === undefined

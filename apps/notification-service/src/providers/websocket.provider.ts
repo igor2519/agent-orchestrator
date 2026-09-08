@@ -42,7 +42,11 @@ export class WebsocketProvider extends BaseNotificationProvider {
     super();
   }
 
-  /** Every outcome is worth showing in a UI, so this channel always applies. */
+  /**
+   * The default channel. It always applies, including when a customer selected
+   * WEBHOOK only - a UI watching the flow should never go dark because of a
+   * delivery preference that concerns their server, not their screen.
+   */
   supports(): boolean {
     return true;
   }
