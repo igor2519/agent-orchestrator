@@ -3,6 +3,8 @@ import { Injectable } from '@nestjs/common';
 
 import { DocumentsRepository } from '../repositories/documents.repository';
 
+import { DocumentStreamService } from './document-stream.service';
+
 import type { Document } from '../entities/document.entity';
 import type { EventContext } from '@app/messaging';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
@@ -17,9 +19,12 @@ import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialE
  */
 @Injectable()
 export class DocumentProjectionService {
-  constructor(private readonly documents: DocumentsRepository) {}
+  constructor(
+    private readonly documents: DocumentsRepository,
+    private readonly stream: DocumentStreamService,
+  ) {}
 
-  async apply({ manager, envelope, logger }: EventContext): Promise<void> {
+  async apply({ manager, envelope, logger, onCommit }: EventContext): Promise<void> {
     const update = DocumentProjectionService.toUpdate(envelope);
 
     if (!update) {
@@ -30,7 +35,21 @@ export class DocumentProjectionService {
 
     if (affected === 0) {
       logger.warn('Projection target document not found', { documentId: envelope.documentId });
+
+      return;
     }
+
+    // Announced only once the projection has actually committed.
+    onCommit(() => {
+      this.stream.publish({
+        documentId: envelope.documentId,
+        correlationId: envelope.correlationId,
+        status: (update.status as DocumentStatus | undefined) ?? null,
+        eventType: envelope.type,
+        notificationStatus: update.notificationStatus as string | undefined,
+        occurredAt: envelope.occurredAt,
+      });
+    });
   }
 
   private static toUpdate(

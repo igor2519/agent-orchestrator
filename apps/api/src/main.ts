@@ -1,5 +1,6 @@
 import { BaseLogger, NestLoggerAdapter } from '@app/logger';
 import { NestFactory } from '@nestjs/core';
+import { WsAdapter } from '@nestjs/platform-ws';
 import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app/app.module';
@@ -15,6 +16,9 @@ async function bootstrap() {
   // Lets MessagingBootstrap close AMQP channels so in-flight messages are
   // redelivered rather than lost on shutdown.
   app.enableShutdownHooks();
+
+  // Native ws rather than socket.io, so the browser can use its built-in WebSocket.
+  app.useWebSocketAdapter(new WsAdapter(app));
 
   app.use(cookieParser());
 

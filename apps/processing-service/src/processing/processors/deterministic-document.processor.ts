@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/require-await -- these implement an
+   intentionally async contract; the deterministic stand-ins perform no I/O */
 import { createHash } from 'node:crypto';
 
 import { PermanentError, TransientError } from '@app/messaging';
@@ -27,9 +29,6 @@ export class DeterministicDocumentProcessor extends BaseDocumentProcessor {
     return true;
   }
 
-  // The contract is async because real processors perform I/O; this deterministic
-  // stand-in does not.
- 
   async process(input: ProcessingInput): Promise<ProcessingOutcome> {
     const digest = createHash('sha256').update(input.documentReference).digest();
     const bucket = digest[3] % 20;

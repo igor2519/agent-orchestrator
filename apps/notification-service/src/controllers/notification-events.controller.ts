@@ -2,7 +2,7 @@ import { EventType } from '@app/contracts';
 import { MessageController, OnEvent } from '@app/messaging';
 import { Injectable } from '@nestjs/common';
 
-import { NotificationService } from '../services/notification.service';
+import { NotificationIntakeService } from '../services/notification-intake.service';
 
 import type { EventContext } from '@app/messaging';
 
@@ -10,12 +10,12 @@ import type { EventContext } from '@app/messaging';
  * RabbitMQ endpoints of the notification service.
  *
  * Declares the subscriptions and delegates; all decisions live in
- * {@link NotificationService}.
+ * {@link NotificationIntakeService}.
  */
 @MessageController()
 @Injectable()
 export class NotificationEventsController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(private readonly intake: NotificationIntakeService) {}
 
   @OnEvent(
     EventType.DocumentProcessed,
@@ -23,6 +23,6 @@ export class NotificationEventsController {
     EventType.DocumentValidationFailed,
   )
   async onDocumentOutcome(context: EventContext): Promise<void> {
-    await this.notificationService.queueDelivery(context);
+    await this.intake.queueDelivery(context);
   }
 }

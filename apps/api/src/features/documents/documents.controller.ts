@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Sse,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -19,6 +20,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { map } from 'rxjs';
 
 import { RequireApiKey } from '../auth/decorators';
 import { ApiOkResponsePaginated } from '../common/decorators/api-ok-response-paginated.decorator';
@@ -29,16 +31,37 @@ import { JoiValidationPipe } from '../common/pipes';
 import { DocumentAcceptedDto, ListDocumentsQueryDto, SubmitDocumentDto } from './dto';
 import { Document } from './entities/document.entity';
 import { listDocumentsSchema, submitDocumentSchema } from './joi-validations';
+import { DocumentStreamService } from './services/document-stream.service';
+import { DocumentTicketService } from './services/document-ticket.service';
 import { DocumentsService } from './services/documents.service';
 
 import type { ListDocumentsInput } from './joi-validations';
+import type { MessageEvent } from '@nestjs/common';
+import type { Observable } from 'rxjs';
 
 const IDEMPOTENCY_HEADER = 'idempotency-key';
 
 @ApiTags('Documents')
 @Controller('documents')
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly stream: DocumentStreamService,
+    private readonly tickets: DocumentTicketService,
+  ) {}
+
+  @ApiOperation({
+    summary: 'Mint a short-lived ticket for a WebSocket connection',
+    description:
+      'A browser WebSocket cannot send headers, so a server-side caller exchanges its ' +
+      'API key for a signed ticket that expires in a minute.',
+  })
+  @RequireApiKey()
+  @HttpCode(HttpStatus.OK)
+  @Post('stream/ticket')
+  issueStreamTicket(): { ticket: string; expiresAt: string } {
+    return this.tickets.issue();
+  }
 
   @ApiOperation({
     summary: 'Submit a document for processing',
@@ -66,6 +89,19 @@ export class DocumentsController {
     }
 
     return this.documentsService.submit(body, idempotencyKey.trim());
+  }
+
+  @ApiOperation({
+    summary: 'Live stream of document status changes',
+    description:
+      'Server-sent events mirroring the webhooks delivered to customer endpoints. ' +
+      'Browsers cannot receive webhooks, so a UI watches this instead; the document ' +
+      'itself remains the source of truth.',
+  })
+  @RequireApiKey()
+  @Sse('stream')
+  streamEvents(): Observable<MessageEvent> {
+    return this.stream.asObservable().pipe(map((event) => ({ data: event })));
   }
 
   @ApiOperation({ summary: 'Fetch a document with its status, results and errors' })

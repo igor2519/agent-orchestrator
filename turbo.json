@@ -3,6 +3,25 @@
   "globalDependencies": [
     "**/.env"
   ],
+  "globalEnv": [
+    "NODE_ENV",
+    "APP_NAME",
+    "BACKEND_HOST_URL",
+    "FRONTEND_HOST_URL",
+    "ENABLE_SWAGGER",
+    "API_KEY",
+    "DATABASE_HOST",
+    "DATABASE_PORT",
+    "DATABASE_USERNAME",
+    "DATABASE_PASSWORD",
+    "DATABASE_NAME",
+    "RABBITMQ_URL",
+    "NEXT_PUBLIC_*",
+    "CDN_BASE_URL",
+    "ANALYZE",
+    "ALLOW_PRIVATE_CALLBACK_URLS",
+    "WEBHOOK_SIGNING_SECRET"
+  ],
   "tasks": {
     "build": {
       "dependsOn": [

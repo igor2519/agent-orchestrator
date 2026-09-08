@@ -19,6 +19,7 @@ export const RoutingKey = {
   DocumentProcessingFailed: 'document.processing-failed',
   NotificationDelivered: 'notification.delivered',
   NotificationFailed: 'notification.failed',
+  NotificationBroadcast: 'notification.broadcast',
 
   OcrRetry: 'document.ocr.retry',
   ProcessingRetry: 'document.processing.retry',
@@ -37,6 +38,7 @@ export const ROUTING_KEY_BY_EVENT: Record<EventType, RoutingKey> = {
   [EventType.DocumentProcessingFailed]: RoutingKey.DocumentProcessingFailed,
   [EventType.NotificationDelivered]: RoutingKey.NotificationDelivered,
   [EventType.NotificationFailed]: RoutingKey.NotificationFailed,
+  [EventType.NotificationBroadcast]: RoutingKey.NotificationBroadcast,
 };
 
 export const Queue = {
@@ -70,6 +72,7 @@ export const QUEUE_BINDINGS: Record<Queue, readonly RoutingKey[]> = {
     RoutingKey.DocumentProcessingFailed,
     RoutingKey.NotificationDelivered,
     RoutingKey.NotificationFailed,
+    RoutingKey.NotificationBroadcast,
   ],
 };
 

@@ -16,6 +16,7 @@ import type { DeliveryAttemptSummary } from '@app/contracts';
 @Entity({ name: 'documents' })
 @Index(['customerId', 'status', 'createdAt'])
 @Index(['correlationId'])
+@Index(['customerId', 'contentHash'])
 export class Document extends AuditEntity {
   constructor(partial?: Partial<Document>) {
     super();
@@ -34,6 +35,10 @@ export class Document extends AuditEntity {
   @ApiProperty()
   @Column({ name: 'document_type' })
   documentType: string;
+
+  @ApiProperty({ description: 'SHA-256 of the submitted content, used to process a file once' })
+  @Column({ name: 'content_hash', length: 64 })
+  contentHash: string;
 
   @ApiProperty({ selfRequired: false, type: 'object', additionalProperties: true })
   @Column({ type: 'jsonb', nullable: true })

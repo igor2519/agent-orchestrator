@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class Initial1788816488953 implements MigrationInterface {
-  name = 'Initial1788816488953';
+export class Initial1788893525889 implements MigrationInterface {
+  name = 'Initial1788893525889';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
@@ -11,13 +11,13 @@ export class Initial1788816488953 implements MigrationInterface {
       `CREATE INDEX "IDX_bd458a235b667ce208396a8436" ON "inbox_messages"  ("processed_at") `,
     );
     await queryRunner.query(
-      `CREATE TABLE "outbox_messages" ("id" uuid NOT NULL, "document_id" uuid NOT NULL, "type" character varying(64) NOT NULL, "routing_key" character varying(128) NOT NULL, "envelope" jsonb NOT NULL, "correlation_id" uuid NOT NULL, "causation_id" uuid, "sequence" BIGSERIAL NOT NULL, "available_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "published_at" TIMESTAMP WITH TIME ZONE, "attempts" integer NOT NULL DEFAULT '0', "last_error" text, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_0171348f527c64b137e4d4f5b66" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "outbox_messages" ("id" uuid NOT NULL, "document_id" uuid NOT NULL, "type" character varying(64) NOT NULL, "routing_key" character varying(128) NOT NULL, "envelope" jsonb NOT NULL, "correlation_id" uuid NOT NULL, "causation_id" uuid, "request_id" character varying(64), "sequence" BIGSERIAL NOT NULL, "available_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "published_at" TIMESTAMP WITH TIME ZONE, "attempts" integer NOT NULL DEFAULT '0', "last_error" text, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_0171348f527c64b137e4d4f5b66" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_d42136e54f748d65fd8324da31" ON "outbox_messages"  ("published_at", "available_at") `,
     );
     await queryRunner.query(
-      `CREATE TABLE "notification_deliveries" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "document_id" uuid NOT NULL, "correlation_id" uuid NOT NULL, "document_attempt" integer NOT NULL, "callback_url" character varying NOT NULL, "event_type" character varying(64) NOT NULL, "payload" jsonb NOT NULL, "status" character varying(32) NOT NULL DEFAULT 'PENDING', "attempts" integer NOT NULL DEFAULT '0', "next_attempt_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "last_status_code" integer, "last_error" text, "delivered_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "uq_delivery_document_attempt" UNIQUE ("document_id", "document_attempt"), CONSTRAINT "PK_81daeff81f237bd384f7cfc4a4c" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "notification_deliveries" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "document_id" uuid NOT NULL, "correlation_id" uuid NOT NULL, "document_attempt" integer NOT NULL, "channel" character varying(16) NOT NULL DEFAULT 'WEBHOOK', "callback_url" character varying, "event_type" character varying(64) NOT NULL, "payload" jsonb NOT NULL, "status" character varying(32) NOT NULL DEFAULT 'PENDING', "attempts" integer NOT NULL DEFAULT '0', "next_attempt_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "last_status_code" integer, "last_error" text, "delivered_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "uq_delivery_document_attempt_channel" UNIQUE ("document_id", "document_attempt", "channel"), CONSTRAINT "PK_81daeff81f237bd384f7cfc4a4c" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_659ef2edd26e3715381b1c55d8" ON "notification_deliveries"  ("document_id") `,

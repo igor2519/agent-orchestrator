@@ -8,6 +8,7 @@ export const EventType = {
   DocumentProcessingFailed: 'DocumentProcessingFailed',
   NotificationDelivered: 'NotificationDelivered',
   NotificationFailed: 'NotificationFailed',
+  NotificationBroadcast: 'NotificationBroadcast',
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];
@@ -16,6 +17,8 @@ export interface DocumentSubmittedPayload {
   customerId: string;
   documentReference: string;
   documentType: string;
+  /** SHA-256 of the canonical payload; identifies the file's content. */
+  contentHash: string;
   /** Inline synthetic payload. Mutually exclusive with `payloadUri`. */
   payload?: Record<string, unknown>;
   /** Reference to an externally stored payload. Mutually exclusive with `payload`. */
@@ -94,6 +97,22 @@ export interface NotificationFailedPayload {
   attemptLog: DeliveryAttemptSummary[];
 }
 
+/**
+ * Payload pushed to browsers over WebSocket.
+ *
+ * The notification service cannot hold the socket itself - it serves no HTTP - so
+ * the websocket channel "delivers" by publishing this, and the API relays it to
+ * connected clients.
+ */
+export interface NotificationBroadcastPayload {
+  deliveryId: string;
+  customerId: string;
+  documentReference: string;
+  event: string;
+  status: string | null;
+  occurredAt: string;
+}
+
 /** Maps each event name to the shape of its `payload` field. */
 export interface EventPayloadMap {
   [EventType.DocumentSubmitted]: DocumentSubmittedPayload;
@@ -104,4 +123,5 @@ export interface EventPayloadMap {
   [EventType.DocumentProcessingFailed]: DocumentProcessingFailedPayload;
   [EventType.NotificationDelivered]: NotificationDeliveredPayload;
   [EventType.NotificationFailed]: NotificationFailedPayload;
+  [EventType.NotificationBroadcast]: NotificationBroadcastPayload;
 }

@@ -15,6 +15,15 @@ export interface EventEnvelope<TType extends EventType = EventType> {
   correlationId: string;
   causationId: string | null;
   documentId: string;
+  /**
+   * The HTTP request that originally set this work in motion.
+   *
+   * Distinct from `correlationId`: correlation groups everything about one
+   * document (including operator retries months later), while the request id
+   * pins work to the single inbound call that caused it, which is what an
+   * operator has when a customer quotes a failed request.
+   */
+  requestId: string | null;
   /** 1-based delivery attempt, incremented when a service re-publishes for retry. */
   attempt: number;
   payload: EventPayloadMap[TType];

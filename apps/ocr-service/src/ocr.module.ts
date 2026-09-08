@@ -6,6 +6,7 @@ import { BaseOcrProcessor } from './ocr/base-ocr-processor';
 import { OcrProcessorRegistry } from './ocr/ocr-processor.registry';
 import { OCR_PROCESSORS } from './ocr/ocr.tokens';
 import { DeterministicOcrProcessor } from './ocr/processors/deterministic-ocr.processor';
+import { TesseractOcrProcessor } from './ocr/processors/tesseract-ocr.processor';
 import { OcrResultsRepository } from './repositories/ocr-results.repository';
 import { OcrService } from './services/ocr.service';
 import { BaseDocumentValidator } from './validation/base-document-validator';
@@ -21,7 +22,9 @@ import { InvoiceFieldsValidator } from './validation/validators/invoice-fields.v
  * to one of the two lists below. No handler, event or queue definition changes.
  * Order is precedence, so general-purpose engines belong last.
  */
-const OCR_PROCESSOR_CLASSES = [DeterministicOcrProcessor];
+// Order is precedence: Tesseract claims image types, the deterministic engine
+// takes everything else.
+const OCR_PROCESSOR_CLASSES = [TesseractOcrProcessor, DeterministicOcrProcessor];
 const DOCUMENT_VALIDATOR_CLASSES = [ExtractedTextValidator, InvoiceFieldsValidator];
 
 @Module({

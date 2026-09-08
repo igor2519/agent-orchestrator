@@ -38,6 +38,10 @@ export class OutboxMessage {
   @Column({ name: 'causation_id', type: 'uuid', nullable: true })
   causationId: string | null;
 
+  /** Kept alongside the envelope so a stuck row can be traced to its request. */
+  @Column({ name: 'request_id', type: 'varchar', length: 64, nullable: true })
+  requestId: string | null;
+
   /**
    * Strict insertion order. `created_at` cannot serve this purpose because
    * Postgres `now()` returns the transaction start time, so several rows written

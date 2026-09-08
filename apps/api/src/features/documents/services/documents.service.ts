@@ -15,6 +15,8 @@ import { DataSource } from 'typeorm';
 import { DocumentsRepository } from '../repositories/documents.repository';
 import { IdempotencyKeysRepository } from '../repositories/idempotency-keys.repository';
 
+import { ContentHashService } from './content-hash.service';
+
 import type { DocumentAcceptedDto } from '../dto';
 import type { Document } from '../entities/document.entity';
 import type { ListDocumentsInput, SubmitDocumentInput } from '../joi-validations';
@@ -31,6 +33,7 @@ export class DocumentsService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly documents: DocumentsRepository,
     private readonly idempotencyKeys: IdempotencyKeysRepository,
+    private readonly contentHashes: ContentHashService,
     private readonly outbox: OutboxService,
     private readonly logger: BaseLogger,
   ) {}
@@ -51,6 +54,30 @@ export class DocumentsService {
       return replay;
     }
 
+    // Content-level deduplication: the same file is processed once per customer,
+    // however many times it is submitted and under whatever reference.
+    const contentHash = this.contentHashes.hash(input);
+    const alreadyProcessed = await this.documents.findProcessableDuplicate(
+      input.customerId,
+      contentHash,
+    );
+
+    if (alreadyProcessed) {
+      this.logger.log('Submission matched an already-processed file, reusing it', {
+        correlationId: alreadyProcessed.correlationId,
+        documentId: alreadyProcessed.id,
+        contentHash,
+      });
+
+      return {
+        id: alreadyProcessed.id,
+        status: alreadyProcessed.status,
+        correlationId: alreadyProcessed.correlationId,
+        duplicate: true,
+        deduplicatedBy: 'CONTENT_HASH',
+      };
+    }
+
     const correlationId = randomUUID();
 
     try {
@@ -62,6 +89,7 @@ export class DocumentsService {
           payload: input.payload ?? null,
           payloadUri: input.payloadUri ?? null,
           callbackUrl: input.callbackUrl,
+          contentHash,
           status: DocumentStatus.Received,
           correlationId,
           attempts: 1,
@@ -82,6 +110,7 @@ export class DocumentsService {
             customerId: input.customerId,
             documentReference: input.documentReference,
             documentType: input.documentType,
+            contentHash,
             payload: input.payload,
             payloadUri: input.payloadUri,
             callbackUrl: input.callbackUrl,
@@ -141,6 +170,7 @@ export class DocumentsService {
       status: document.status,
       correlationId: document.correlationId,
       duplicate: true,
+      deduplicatedBy: 'IDEMPOTENCY_KEY',
     };
   }
 
@@ -215,6 +245,7 @@ export class DocumentsService {
           customerId: document.customerId,
           documentReference: document.documentReference,
           documentType: document.documentType,
+          contentHash: document.contentHash,
           payload: document.payload ?? undefined,
           payloadUri: document.payloadUri ?? undefined,
           callbackUrl: document.callbackUrl,

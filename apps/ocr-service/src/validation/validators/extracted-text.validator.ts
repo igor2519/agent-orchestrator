@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/require-await -- these implement an
+   intentionally async contract; the deterministic stand-ins perform no I/O */
 import { Injectable } from '@nestjs/common';
 
 import { BaseDocumentValidator } from '../base-document-validator';
@@ -16,7 +18,6 @@ export class ExtractedTextValidator extends BaseDocumentValidator {
     return true;
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- implements an intentionally async contract
   async validate({ ocr }: ValidationInput): Promise<ValidationIssue[]> {
     const issues: ValidationIssue[] = [];
 

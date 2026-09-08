@@ -14,12 +14,13 @@ export class NotificationDeliveriesRepository extends TransactionalRepository<No
     super(NotificationDelivery, dataSource);
   }
 
-  findByDocumentAttempt(
+  findByDocumentAttemptChannel(
     manager: EntityManager,
     documentId: string,
     documentAttempt: number,
+    channel: string,
   ): Promise<NotificationDelivery | null> {
-    return this.scoped(manager).findOne({ where: { documentId, documentAttempt } });
+    return this.scoped(manager).findOne({ where: { documentId, documentAttempt, channel } });
   }
 
   save(

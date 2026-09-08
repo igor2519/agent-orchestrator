@@ -7,6 +7,8 @@
  * a distributed flow from logs alone.
  */
 export interface LogContext {
+  /** The inbound HTTP request that caused this work, propagated across services. */
+  requestId?: string;
   correlationId?: string;
   causationId?: string;
   [key: string]: unknown;

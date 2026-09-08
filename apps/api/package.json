@@ -39,9 +39,11 @@
     "@nestjs/jwt": "^12.0.1",
     "@nestjs/passport": "^12.0.0",
     "@nestjs/platform-express": "^12.0.1",
+    "@nestjs/platform-ws": "^12.0.1",
     "@nestjs/swagger": "^12.0.1",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^12.0.1",
+    "@nestjs/websockets": "^12.0.1",
     "amqplib": "^2.0.1",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
@@ -62,7 +64,8 @@
     "slugify": "^1.6.9",
     "typeorm": "^1.1.1",
     "typeorm-naming-strategies": "^4.1.0",
-    "uuid": "^14.0.2"
+    "uuid": "^14.0.2",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",
@@ -81,6 +84,7 @@
     "@types/passport-local": "^1.0.38",
     "@types/qs": "^6.15.1",
     "@types/supertest": "^7.2.1",
+    "@types/ws": "^8.18.1",
     "better-sqlite3": "^13.0.3",
     "eslint-config-custom": "*",
     "jest": "^30.5.1",

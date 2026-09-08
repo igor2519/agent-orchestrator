@@ -25,7 +25,7 @@ export type DeliveryStatus = (typeof DeliveryStatus)[keyof typeof DeliveryStatus
  * succeeded" unanswerable.
  */
 @Entity({ name: 'notification_deliveries' })
-@Unique('uq_delivery_document_attempt', ['documentId', 'documentAttempt'])
+@Unique('uq_delivery_document_attempt_channel', ['documentId', 'documentAttempt', 'channel'])
 @Index(['status', 'nextAttemptAt'])
 export class NotificationDelivery {
   @PrimaryGeneratedColumn('uuid')
@@ -42,8 +42,12 @@ export class NotificationDelivery {
   @Column({ name: 'document_attempt', type: 'int' })
   documentAttempt: number;
 
-  @Column({ name: 'callback_url' })
-  callbackUrl: string;
+  /** Which provider owns this delivery; one row per channel per outcome. */
+  @Column({ type: 'varchar', length: 16, default: 'WEBHOOK' })
+  channel: string;
+
+  @Column({ name: 'callback_url', type: 'varchar', nullable: true })
+  callbackUrl: string | null;
 
   @Column({ name: 'event_type', length: 64 })
   eventType: string;

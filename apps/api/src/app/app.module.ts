@@ -1,7 +1,7 @@
 import { Queue } from '@app/contracts';
 import { LoggerModule } from '@app/logger';
 import { MessagingModule } from '@app/messaging';
-import { ClassSerializerInterceptor, Module } from '@nestjs/common';
+import { ClassSerializerInterceptor, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -11,6 +11,7 @@ import { getTypeOrmModuleOptions } from 'src/config/db.config';
 import envConfig from 'src/config/env.config';
 import { AuthModule } from 'src/features/auth/auth.module';
 import { PassportOptionsModule } from 'src/features/auth/passport-options.module';
+import { RequestContextMiddleware } from 'src/features/common/middleware/request-context.middleware';
 import { DocumentEventsController } from 'src/features/documents/controllers/document-events.controller';
 import { DocumentsModule } from 'src/features/documents/documents.module';
 import { DummyDataModule } from 'src/features/dummy-data/dummy-data.module';
@@ -67,4 +68,9 @@ import { AppService } from './app.service';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // Applied to every route so no request is ever logged without an id.
+    consumer.apply(RequestContextMiddleware).forRoutes('*splat');
+  }
+}

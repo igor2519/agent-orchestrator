@@ -87,6 +87,14 @@ instruction, which is what keeps this choreography rather than orchestration.
 - **Idempotent submission** — `Idempotency-Key` plus a unique constraint on
   `(customer_id, key)`. Concurrent duplicates are arbitrated by the constraint, not a
   lock. Reusing a key with a different body is a `409`.
+- **Process each file once** — every submission is fingerprinted with a SHA-256 of
+  its canonical content (keys sorted recursively, array order preserved). A file
+  already processed for that customer returns the original document with
+  `deduplicatedBy: CONTENT_HASH`, whatever reference or idempotency key it arrives
+  under. Documents that ended in `FAILED` are excluded, so a file that never
+  processed successfully is not permanently blocked by its own failure. This is a
+  separate check from `Idempotency-Key`: that one makes a retried *HTTP call* safe,
+  this one makes a repeated *file* safe.
 
 ## Extending it
 
@@ -136,6 +144,7 @@ All HTTP lives on the API service:
 | `GET /documents?status=&customerId=&submittedFrom=` | search |
 | `POST /documents/:id/retry` | re-run a failed document |
 | `GET /messaging/outbox/stats`, `/outbox/pending`, `/inbox/:eventId` | operational view of the API's own inbox/outbox |
+| `GET /documents/stream` | server-sent events mirroring the webhooks (see below) |
 | `POST /mock/callbacks` | mock customer receiver; verifies the HMAC signature |
 
 Webhook attempts are visible through `GET /documents/:id` rather than a notification
@@ -146,12 +155,88 @@ so the attempt log travels to the API on the `NotificationDelivered` /
 Callbacks to private or loopback addresses are rejected by default (SSRF); set
 `ALLOW_PRIVATE_CALLBACK_URLS=true` locally to reach the mock receiver.
 
+## Notification channels
+
+Every channel extends `BaseNotificationProvider`, so intake, retry scheduling,
+attempt logging and terminal handling are written once:
+
+Channels are strategies in `providers/`; `services/` runs them.
+
+| `providers/` | Channel | Delivers by |
+|---|---|---|
+| `BaseNotificationProvider` | — | the contract: `supports()` and `deliver()` |
+| `WebhookProvider` | `WEBHOOK` | signed HTTP POST to the customer's callback |
+| `WebsocketProvider` | `WEBSOCKET` | publishing a broadcast the API relays to browsers |
+
+| `services/` | Responsibility |
+|---|---|
+| `NotificationIntakeService` | outcome event → one delivery row per applicable channel |
+| `NotificationDeliveryService` | picks the strategy for a delivery's channel and owns the shared lifecycle |
+| `DeliveryScheduler` | decides *when* due deliveries are attempted |
+
+A provider knows only how to put a payload on its transport. Attempt logging, retry
+backoff, terminal status and the outcome event are written once in
+`NotificationDeliveryService`, which is why adding email or Slack is a subclass plus
+one entry in `NOTIFICATION_PROVIDER_CLASSES`.
+
+Intake creates **one delivery row per channel**, each with its own attempts and
+schedule — a failing webhook cannot hold up the websocket broadcast.
+
+## Watching a document from a browser
+
+A browser cannot receive a webhook, so the websocket channel bridges it: the
+notification service publishes a broadcast, and the API — the only service with a
+listener — relays it to connected sockets.
+
+```
+notification-service ──signed webhook────────────▶ customer endpoint
+notification-service ──NotificationBroadcast──▶ api ──WebSocket──▶ browser
+```
+
+`WebSocket` cannot send headers on the handshake, so connections are authorised by a
+**short-lived signed ticket** rather than the API key: the Next route handler
+exchanges its server-side key for a ticket that expires in a minute, and the browser
+presents only that. The expiry is inside the signed material, so it cannot be
+extended. `/documents` in the frontend submits a document and watches milestones
+arrive live.
+
+Broadcasts are published from a **post-commit hook**, so nothing is announced for a
+transaction that rolled back. `GET /documents/stream` (SSE) remains for CLI use.
+
+## OCR engines
+
+| Engine | Claims | Notes |
+|---|---|---|
+| `TesseractOcrProcessor` | `image`, `scan`, `scanned-document`, `receipt-image` | Real OCR via Tesseract.js; reads `payload.imageBase64` or fetches `payloadUri` |
+| `DeterministicOcrProcessor` | everything else | Reproducible stand-in |
+
+Order is precedence, so Tesseract takes image types and the deterministic engine is
+the fallback. The Tesseract worker is expensive to start (it downloads language data
+on first use), so one is created lazily, reused, and terminated on shutdown; a
+recognition crash disposes it so the next attempt gets a fresh one. Failures are
+classified deliberately — a missing or corrupt image is permanent, a worker or fetch
+problem is transient.
+
+## Request tracing
+
+Every HTTP request gets an `x-request-id` (an inbound one is honoured after
+sanitising, otherwise generated) which is echoed on the response, carried in
+`AsyncLocalStorage` for the life of the request, written into every outbox row and
+event envelope, and re-established by the dispatcher before handlers run.
+
+One request id therefore appears in the logs of all four services for the work it
+caused. It is distinct from `correlationId`: correlation groups everything about one
+document including operator retries months later, while the request id pins work to
+the single inbound call — which is what an operator has when a customer quotes a
+failed request.
+
 ## Deterministic mocks
 
-The OCR and processing mocks derive their behaviour — including whether they fail,
-and whether that failure is transient or permanent — from a hash of the document
-reference. Every retry and failure path is therefore reproducible from a fixed input,
-with no clocks or randomness. See the class comments for the bucket ranges.
+The deterministic OCR and processing mocks derive their behaviour — including whether
+they fail, and whether that failure is transient or permanent — from a hash of the
+document reference. Every retry and failure path is therefore reproducible from a
+fixed input, with no clocks or randomness. See the class comments for the bucket
+ranges.
 
 ## Known gaps for v1
 

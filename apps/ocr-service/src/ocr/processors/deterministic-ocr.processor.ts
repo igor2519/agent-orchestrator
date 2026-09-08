@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/require-await -- these implement an
+   intentionally async contract; the deterministic stand-ins perform no I/O */
 import { createHash } from 'node:crypto';
 
 import { PermanentError, TransientError } from '@app/messaging';
@@ -30,7 +32,6 @@ export class DeterministicOcrProcessor extends BaseOcrProcessor {
     return true;
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- implements an intentionally async contract
   async extract(input: OcrInput): Promise<OcrOutcome> {
     const digest = createHash('sha256').update(input.documentReference).digest();
     const bucket = digest[0] % 20;

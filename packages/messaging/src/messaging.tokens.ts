@@ -25,6 +25,14 @@ export interface EventContext<TType extends EventType = EventType> {
   envelope: Extract<AnyEventEnvelope, { type: TType }>;
   /** Logger already bound to this event's correlation and causation ids. */
   logger: BaseLogger;
+  /**
+   * Registers a callback to run once the surrounding transaction has committed.
+   *
+   * Anything that escapes the database - pushing to a live stream, invalidating a
+   * cache - belongs here rather than inline, so a rolled-back transaction cannot
+   * announce work that never happened.
+   */
+  onCommit: (callback: () => void) => void;
 }
 
 /** Signature every `@OnEvent` controller method must satisfy. */

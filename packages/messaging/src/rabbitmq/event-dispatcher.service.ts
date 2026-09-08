@@ -1,4 +1,4 @@
-import { BaseLogger } from '@app/logger';
+import { BaseLogger, RequestContext } from '@app/logger';
 import { Inject, Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
@@ -9,7 +9,7 @@ import { EVENT_CONTROLLERS, MESSAGING_OPTIONS } from '../messaging.tokens';
 import { AmqpConnection } from './amqp-connection';
 
 import type { EventControllerMethod, MessagingOptions } from '../messaging.tokens';
-import type { AnyEventEnvelope, EventType } from '@app/contracts';
+import type { AnyEventEnvelope, EventType, Queue } from '@app/contracts';
 
 interface Route {
   controller: string;
@@ -104,6 +104,7 @@ export class EventDispatcherService {
     }
 
     const logger = this.logger.child({
+      requestId: envelope.requestId ?? undefined,
       correlationId: envelope.correlationId,
       causationId: envelope.id,
       documentId: envelope.documentId,
@@ -119,6 +120,35 @@ export class EventDispatcherService {
       return;
     }
 
+    const afterCommit: (() => void)[] = [];
+    const onCommit = (callback: () => void) => afterCommit.push(callback);
+
+    // Re-establishing the originating request id here is what carries it into
+    // every event this handler publishes, so a chain spanning four services stays
+    // attributable to the one HTTP call that started it.
+    await RequestContext.run(
+      { requestId: envelope.requestId ?? undefined, correlationId: envelope.correlationId },
+      async () => this.handleInTransaction(envelope, queue, routes, logger, onCommit),
+    );
+    // Only reached when the transaction committed; a rollback throws above.
+    for (const callback of afterCommit) {
+      try {
+        callback();
+      } catch (error) {
+        logger.error('Post-commit callback failed', error);
+      }
+    }
+
+    logger.log('Event processed');
+  }
+
+  private async handleInTransaction(
+    envelope: AnyEventEnvelope,
+    queue: Queue,
+    routes: Route[],
+    logger: BaseLogger,
+    onCommit: (callback: () => void) => void,
+  ): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       if (await this.inbox.hasProcessed(manager, envelope.id, queue)) {
         logger.debug('Duplicate event ignored');
@@ -127,12 +157,10 @@ export class EventDispatcherService {
       }
 
       for (const route of routes) {
-        await route.method({ manager, envelope, logger });
+        await route.method({ manager, envelope, logger, onCommit });
       }
 
       await this.inbox.markProcessed(manager, envelope.id, queue, envelope.type);
     });
-
-    logger.log('Event processed');
   }
 }

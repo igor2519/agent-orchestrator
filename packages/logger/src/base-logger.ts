@@ -1,3 +1,4 @@
+import { RequestContext } from './request-context';
 import { LogContext, LogLevel, LogRecord } from './types';
 
 /**
@@ -49,7 +50,8 @@ export abstract class BaseLogger {
       message,
       service: this.service,
       timestamp: new Date().toISOString(),
-      context: { ...this.baseContext, ...context },
+      // Ambient request context first, so an explicit value always wins.
+      context: { ...RequestContext.get(), ...this.baseContext, ...context },
     };
   }
 

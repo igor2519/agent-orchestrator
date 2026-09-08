@@ -1,4 +1,5 @@
 import { ROUTING_KEY_BY_EVENT } from '@app/contracts';
+import { RequestContext } from '@app/logger';
 import { Injectable } from '@nestjs/common';
 import { v4 as uuid } from 'uuid';
 
@@ -18,6 +19,8 @@ export interface EnqueueOptions<TType extends EventType> {
   routingKey?: RoutingKey;
   /** Delays publication - this is how retry backoff is scheduled. */
   availableAt?: Date;
+  /** Defaults to the ambient request id, so callers rarely pass it explicitly. */
+  requestId?: string | null;
   attempt?: number;
 }
 
@@ -33,12 +36,14 @@ export class OutboxService {
     manager: EntityManager,
     options: EnqueueOptions<TType>,
   ): Promise<OutboxMessage> {
+    const requestId = options.requestId ?? RequestContext.requestId ?? null;
     const envelope = {
       id: uuid(),
       type: options.type,
       occurredAt: new Date().toISOString(),
       correlationId: options.correlationId,
       causationId: options.causationId ?? null,
+      requestId,
       documentId: options.documentId,
       attempt: options.attempt ?? 1,
       payload: options.payload,
@@ -52,6 +57,7 @@ export class OutboxService {
       envelope,
       correlationId: envelope.correlationId,
       causationId: envelope.causationId,
+      requestId,
       availableAt: options.availableAt ?? new Date(),
       publishedAt: null,
       attempts: 0,

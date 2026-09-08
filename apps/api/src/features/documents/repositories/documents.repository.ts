@@ -2,7 +2,7 @@ import { DocumentStatus } from '@app/contracts';
 import { TransactionalRepository } from '@app/messaging';
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { Between, DataSource, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Between, DataSource, LessThanOrEqual, MoreThanOrEqual, Not } from 'typeorm';
 
 import { Document } from '../entities/document.entity';
 
@@ -49,6 +49,20 @@ export class DocumentsRepository extends TransactionalRepository<Document> {
     const result = await this.scoped(manager).update({ id, status: from }, changes);
 
     return result.affected ?? 0;
+  }
+
+  /**
+   * The most recent submission of this exact content that is not a failure.
+   *
+   * Failed documents are excluded on purpose: a file that never processed
+   * successfully should be allowed through again rather than being permanently
+   * blocked by its own failure.
+   */
+  findProcessableDuplicate(customerId: string, contentHash: string): Promise<Document | null> {
+    return this.scoped().findOne({
+      where: { customerId, contentHash, status: Not(DocumentStatus.Failed) },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async search(query: ListDocumentsInput): Promise<[Document[], number]> {
