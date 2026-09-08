@@ -1,0 +1,276 @@
+import { createHash, randomUUID } from 'node:crypto';
+
+import { DocumentStatus, EventType, isTerminalStatus } from '@app/contracts';
+import { BaseLogger } from '@app/logger';
+import { OutboxService } from '@app/messaging';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { Between, DataSource, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+
+import { Document } from './entities/document.entity';
+import { IdempotencyKey } from './entities/idempotency-key.entity';
+
+import type { DocumentAcceptedDto } from './dto';
+import type { ListDocumentsInput, SubmitDocumentInput } from './validations';
+import type { PaginationResponseDto } from 'src/features/common/dto';
+
+const UNIQUE_VIOLATION = '23505';
+
+const isUniqueViolation = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && error.code === UNIQUE_VIOLATION;
+
+@Injectable()
+export class DocumentsService {
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly outbox: OutboxService,
+    private readonly logger: BaseLogger,
+  ) {}
+
+  /**
+   * Accepts a submission and publishes `DocumentSubmitted`.
+   *
+   * The document row, the idempotency record and the outbox row are written in a
+   * single transaction, so it is impossible to end up with a stored document whose
+   * event was never emitted (work silently stalls) or an emitted event with no
+   * document (downstream services process a phantom).
+   */
+  async submit(input: SubmitDocumentInput, idempotencyKey: string): Promise<DocumentAcceptedDto> {
+    const fingerprint = DocumentsService.fingerprint(input);
+    const replay = await this.findReplay(input.customerId, idempotencyKey, fingerprint);
+
+    if (replay) {
+      return replay;
+    }
+
+    const correlationId = randomUUID();
+
+    try {
+      const document = await this.dataSource.transaction(async (manager) => {
+        const saved = await manager.save(
+          Document,
+          manager.create(Document, {
+            customerId: input.customerId,
+            documentReference: input.documentReference,
+            documentType: input.documentType,
+            payload: input.payload ?? null,
+            payloadUri: input.payloadUri ?? null,
+            callbackUrl: input.callbackUrl,
+            status: DocumentStatus.Received,
+            correlationId,
+            attempts: 1,
+          }),
+        );
+
+        await manager.insert(IdempotencyKey, {
+          customerId: input.customerId,
+          key: idempotencyKey,
+          requestFingerprint: fingerprint,
+          documentId: saved.id,
+        });
+
+        await this.outbox.enqueue(manager, {
+          type: EventType.DocumentSubmitted,
+          documentId: saved.id,
+          correlationId,
+          payload: {
+            customerId: input.customerId,
+            documentReference: input.documentReference,
+            documentType: input.documentType,
+            payload: input.payload,
+            payloadUri: input.payloadUri,
+            callbackUrl: input.callbackUrl,
+          },
+        });
+
+        return saved;
+      });
+
+      this.logger.log('Document submitted', {
+        correlationId,
+        documentId: document.id,
+        customerId: input.customerId,
+      });
+
+      return { id: document.id, status: document.status, correlationId, duplicate: false };
+    } catch (error) {
+      if (!isUniqueViolation(error)) {
+        throw error;
+      }
+
+      // Another request with the same key committed first. Return its document
+      // rather than starting a second flow.
+      const concurrent = await this.findReplay(input.customerId, idempotencyKey, fingerprint);
+
+      if (!concurrent) {
+        throw error;
+      }
+
+      return concurrent;
+    }
+  }
+
+  private async findReplay(
+    customerId: string,
+    key: string,
+    fingerprint: string,
+  ): Promise<DocumentAcceptedDto | null> {
+    const record = await this.dataSource.manager.findOne(IdempotencyKey, {
+      where: { customerId, key },
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    if (record.requestFingerprint !== fingerprint) {
+      throw new ConflictException('Idempotency-Key was already used with a different request body');
+    }
+
+    const document = await this.dataSource.manager.findOne(Document, {
+      where: { id: record.documentId },
+    });
+
+    if (!document) {
+      return null;
+    }
+
+    return {
+      id: document.id,
+      status: document.status,
+      correlationId: document.correlationId,
+      duplicate: true,
+    };
+  }
+
+  /** Stable hash of the submission, used to detect key reuse with a different body. */
+  private static fingerprint(input: SubmitDocumentInput): string {
+    const canonical = JSON.stringify({
+      customerId: input.customerId,
+      documentReference: input.documentReference,
+      documentType: input.documentType,
+      payload: input.payload ?? null,
+      payloadUri: input.payloadUri ?? null,
+      callbackUrl: input.callbackUrl,
+    });
+
+    return createHash('sha256').update(canonical).digest('hex');
+  }
+
+  async findOne(id: string): Promise<Document> {
+    const document = await this.dataSource.manager.findOne(Document, { where: { id } });
+
+    if (!document) {
+      throw new NotFoundException(`Document ${id} was not found`);
+    }
+
+    return document;
+  }
+
+  async list(query: ListDocumentsInput): Promise<PaginationResponseDto<Document>> {
+    const where: FindOptionsWhere<Document> = {};
+
+    if (query.customerId) {
+      where.customerId = query.customerId;
+    }
+
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    if (query.submittedFrom && query.submittedTo) {
+      where.createdAt = Between(query.submittedFrom, query.submittedTo);
+    } else if (query.submittedFrom) {
+      where.createdAt = MoreThanOrEqual(query.submittedFrom);
+    } else if (query.submittedTo) {
+      where.createdAt = LessThanOrEqual(query.submittedTo);
+    }
+
+    const [data, total] = await this.dataSource.manager.findAndCount(Document, {
+      where,
+      order: { createdAt: 'DESC' },
+      take: query.limit,
+      skip: query.offset,
+    });
+
+    return { data, total, limit: query.limit, offset: query.offset };
+  }
+
+  /**
+   * Operator-initiated retry of a permanently failed document.
+   *
+   * Re-publishing `DocumentSubmitted` restarts the choreography from the top; the
+   * new event carries a fresh id so consumers' inboxes do not mistake it for a
+   * duplicate of the original run.
+   */
+  async retry(id: string): Promise<DocumentAcceptedDto> {
+    return this.dataSource.transaction(async (manager) => {
+      const document = await manager.findOne(Document, { where: { id } });
+
+      if (!document) {
+        throw new NotFoundException(`Document ${id} was not found`);
+      }
+
+      if (document.status !== DocumentStatus.Failed) {
+        throw new BadRequestException(
+          `Only failed documents can be retried; document is ${document.status}`,
+        );
+      }
+
+      const attempts = document.attempts + 1;
+
+      await manager.update(
+        Document,
+        // Guarding on the status makes the transition atomic: a second concurrent
+        // retry updates zero rows instead of starting a duplicate flow.
+        { id, status: DocumentStatus.Failed },
+        {
+          status: DocumentStatus.Received,
+          attempts,
+          failureReason: null,
+          errorCode: null,
+          errorMessage: null,
+          failedAt: null,
+        },
+      );
+
+      await this.outbox.enqueue(manager, {
+        type: EventType.DocumentSubmitted,
+        documentId: document.id,
+        correlationId: document.correlationId,
+        attempt: attempts,
+        payload: {
+          customerId: document.customerId,
+          documentReference: document.documentReference,
+          documentType: document.documentType,
+          payload: document.payload ?? undefined,
+          payloadUri: document.payloadUri ?? undefined,
+          callbackUrl: document.callbackUrl,
+        },
+      });
+
+      this.logger.log('Document retry requested', {
+        correlationId: document.correlationId,
+        documentId: document.id,
+        attempt: attempts,
+      });
+
+      return {
+        id: document.id,
+        status: DocumentStatus.Received,
+        correlationId: document.correlationId,
+        duplicate: false,
+      };
+    });
+  }
+
+  /** Guards the projection against events that arrive after a terminal status. */
+  static canApply(current: DocumentStatus): boolean {
+    return !isTerminalStatus(current);
+  }
+}

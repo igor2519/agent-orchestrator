@@ -8,7 +8,7 @@
     "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "setup": "yarn setup:husky && yarn setup:env && yarn docker:local",
-    "setup:env": "cp ./apps/backend/example.env ./apps/backend/.env && cp ./apps/frontend/example.env ./apps/frontend/.env",
+    "setup:env": "cp ./apps/api/example.env ./apps/api/.env && cp ./apps/ocr-service/example.env ./apps/ocr-service/.env && cp ./apps/processing-service/example.env ./apps/processing-service/.env && cp ./apps/notification-service/example.env ./apps/notification-service/.env && cp ./apps/frontend/example.env ./apps/frontend/.env",
     "setup:husky": "yarn setup:husky:nvm && husky",
     "setup:husky:nvm": "mkdir -p ~/.config/husky && cp ./.husky/.huskyrc ~/.config/husky/init.sh",
     "deploy": "turbo run deploy",
@@ -40,5 +40,8 @@
   ],
   "lint-staged": {
     "*.(md|json)": "prettier --write"
+  },
+  "resolutions": {
+    "@types/node": "^24.13.3"
   }
 }

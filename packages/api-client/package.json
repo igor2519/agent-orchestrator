@@ -9,7 +9,7 @@
     "access": "public"
   },
   "dependencies": {
-    "backend": "*",
+    "api": "*",
     "next": "^16.3.4"
   },
   "scripts": {

@@ -14,7 +14,7 @@ module.exports = {
   apps: [
     {
       name: `${appName} backend`,
-      cwd: './apps/backend',
+      cwd: './apps/api',
       script: 'dist/main.js',
       interpreter: interpreterPath,
       instances: '1',

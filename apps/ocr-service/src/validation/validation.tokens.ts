@@ -1,0 +1,1 @@
+export const DOCUMENT_VALIDATORS = Symbol('DOCUMENT_VALIDATORS');

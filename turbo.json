@@ -14,14 +14,14 @@
         "dist/**"
       ]
     },
-    "backend#gen:api-client": {
+    "api#gen:api-client": {
       "dependsOn": [
-        "backend#build"
+        "api#build"
       ]
     },
     "api-client#gen:api-client": {
       "dependsOn": [
-        "backend#gen:api-client"
+        "api#gen:api-client"
       ]
     },
     "gen:api-client": {},

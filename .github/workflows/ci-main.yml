@@ -9,7 +9,7 @@ on:
   workflow_call:
     secrets:
       BACKEND_ENV:
-        description: Content of an apps/backend/.env file
+        description: Content of an apps/api/.env file
         required: false
       FRONTEND_ENV:
         description: Content of an apps/frontend/.env file
@@ -48,7 +48,7 @@ jobs:
 
       - name: Setting up .env
         run: |
-          echo "${{ secrets.BACKEND_ENV }}" > apps/backend/.env
+          echo "${{ secrets.BACKEND_ENV }}" > apps/api/.env
           echo "${{ secrets.FRONTEND_ENV }}" > apps/frontend/.env
 
       - name: Install dependencies
