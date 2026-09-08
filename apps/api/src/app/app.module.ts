@@ -15,6 +15,7 @@ import { DocumentEventsController } from 'src/features/documents/controllers/doc
 import { DocumentsModule } from 'src/features/documents/documents.module';
 import { DummyDataModule } from 'src/features/dummy-data/dummy-data.module';
 import { FileUploadModule } from 'src/features/file-upload/file-upload.module';
+import { MessagingOpsModule } from 'src/features/messaging-ops/messaging-ops.module';
 import { MockReceiverModule } from 'src/features/mock-receiver/mock-receiver.module';
 import { UsersModule } from 'src/features/users/users.module';
 
@@ -47,14 +48,14 @@ import { AppService } from './app.service';
     DummyDataModule,
     DocumentsModule,
     MockReceiverModule,
+    MessagingOpsModule,
     // The API consumes the same exchange purely to keep its read model current;
     // it publishes DocumentSubmitted and never instructs another service.
     MessagingModule.forRoot({
       ...envConfig().rabbitmq,
       queue: Queue.ApiProjection,
       controllers: [DocumentEventsController],
-      // The API is the only service serving HTTP, so it hosts the ops endpoints.
-      exposeOpsController: true,
+      imports: [DocumentsModule],
     }),
   ],
   controllers: [AppController],

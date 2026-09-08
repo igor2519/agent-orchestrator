@@ -7,7 +7,7 @@ import {
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
 
-import { ZodValidationPipe } from 'src/features/common/pipes';
+import { JoiValidationPipe } from 'src/features/common/pipes';
 
 import { SuccessDto } from '../common/dto';
 import { ErrorDto } from '../common/dto/error.dto';
@@ -27,7 +27,6 @@ import {
 } from './dto';
 import { LocalAuthGuard } from './guards';
 import { RequestWithUser } from './interfaces';
-import { AuthService } from './services';
 import {
   signUpSchema,
   forgotPasswordSchema,
@@ -35,7 +34,8 @@ import {
   googleAccountSchema,
   azureAdAccountSchema,
   confirmEmailSchema,
-} from './validations';
+} from './joi-validations';
+import { AuthService } from './services';
 
 // Authorization is handled by NextAuth package in a frontend application
 // This controller is used only as a proxy to access database securely
@@ -59,7 +59,7 @@ export class AuthController {
   @ApiBadRequestResponse({ type: () => ValidationErrorDto })
   @UseGuards(ThrottlerGuard)
   @Post('sign-up')
-  async signUp(@Body(new ZodValidationPipe(signUpSchema)) signUpDto: SignUpDto) {
+  async signUp(@Body(new JoiValidationPipe(signUpSchema)) signUpDto: SignUpDto) {
     return this.authService.signUp(signUpDto);
   }
 
@@ -80,7 +80,7 @@ export class AuthController {
   @ApiBadRequestResponse({ type: () => ValidationErrorDto })
   @Post('google')
   getProfileByGoogleAccount(
-    @Body(new ZodValidationPipe(googleAccountSchema)) googleAccountDto: GoogleAccountDto,
+    @Body(new JoiValidationPipe(googleAccountSchema)) googleAccountDto: GoogleAccountDto,
   ) {
     return this.authService.validateGoogleAccount(googleAccountDto);
   }
@@ -89,7 +89,7 @@ export class AuthController {
   @ApiBadRequestResponse({ type: () => ValidationErrorDto })
   @Post('azure-ad')
   getProfileByAzureAdAccount(
-    @Body(new ZodValidationPipe(azureAdAccountSchema)) azureAdAccountDto: AzureAdAccountDto,
+    @Body(new JoiValidationPipe(azureAdAccountSchema)) azureAdAccountDto: AzureAdAccountDto,
   ) {
     return this.authService.validateAzureAdAccount(azureAdAccountDto);
   }
@@ -98,7 +98,7 @@ export class AuthController {
   @ApiBadRequestResponse({ type: () => ValidationErrorDto })
   @Post('confirm-email')
   async confirmEmail(
-    @Body(new ZodValidationPipe(confirmEmailSchema)) confirmEmailDto: ConfirmEmailDto,
+    @Body(new JoiValidationPipe(confirmEmailSchema)) confirmEmailDto: ConfirmEmailDto,
   ) {
     return this.authService.confirmEmail(confirmEmailDto.token);
   }
@@ -107,7 +107,7 @@ export class AuthController {
   @ApiBadRequestResponse({ type: () => ValidationErrorDto })
   @Post('forgot-password')
   async forgotPassword(
-    @Body(new ZodValidationPipe(forgotPasswordSchema)) passwordForgotDto: ForgotPasswordDto,
+    @Body(new JoiValidationPipe(forgotPasswordSchema)) passwordForgotDto: ForgotPasswordDto,
   ) {
     await this.authService.sendForgotEmail(passwordForgotDto.email);
     return new SuccessDto();
@@ -117,7 +117,7 @@ export class AuthController {
   @ApiBadRequestResponse({ type: () => ValidationErrorDto })
   @Put('reset-password')
   async resetPassword(
-    @Body(new ZodValidationPipe(resetPasswordSchema)) { token, password }: ResetPasswordDto,
+    @Body(new JoiValidationPipe(resetPasswordSchema)) { token, password }: ResetPasswordDto,
   ) {
     await this.authService.resetPassword(token, password);
     return new SuccessDto();

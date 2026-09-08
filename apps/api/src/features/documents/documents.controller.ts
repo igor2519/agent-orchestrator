@@ -24,14 +24,14 @@ import { RequireApiKey } from '../auth/decorators';
 import { ApiOkResponsePaginated } from '../common/decorators/api-ok-response-paginated.decorator';
 import { ErrorDto } from '../common/dto/error.dto';
 import { ValidationErrorDto } from '../common/dto/validation-error.dto';
-import { ZodValidationPipe } from '../common/pipes';
+import { JoiValidationPipe } from '../common/pipes';
 
-import { DocumentsService } from './documents.service';
 import { DocumentAcceptedDto, ListDocumentsQueryDto, SubmitDocumentDto } from './dto';
 import { Document } from './entities/document.entity';
-import { listDocumentsSchema, submitDocumentSchema } from './validations';
+import { listDocumentsSchema, submitDocumentSchema } from './joi-validations';
+import { DocumentsService } from './services/documents.service';
 
-import type { ListDocumentsInput } from './validations';
+import type { ListDocumentsInput } from './joi-validations';
 
 const IDEMPOTENCY_HEADER = 'idempotency-key';
 
@@ -58,7 +58,7 @@ export class DocumentsController {
   @HttpCode(HttpStatus.ACCEPTED)
   @Post()
   submit(
-    @Body(new ZodValidationPipe(submitDocumentSchema)) body: SubmitDocumentDto,
+    @Body(new JoiValidationPipe(submitDocumentSchema)) body: SubmitDocumentDto,
     @Headers(IDEMPOTENCY_HEADER) idempotencyKey?: string,
   ): Promise<DocumentAcceptedDto> {
     if (!idempotencyKey?.trim()) {
@@ -80,7 +80,7 @@ export class DocumentsController {
   @ApiOkResponsePaginated(Document)
   @RequireApiKey()
   @Get()
-  list(@Query(new ZodValidationPipe(listDocumentsSchema)) query: ListDocumentsQueryDto) {
+  list(@Query(new JoiValidationPipe(listDocumentsSchema)) query: ListDocumentsQueryDto) {
     return this.documentsService.list(query as unknown as ListDocumentsInput);
   }
 

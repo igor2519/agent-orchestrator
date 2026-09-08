@@ -2,8 +2,9 @@ import { ROUTING_KEY_BY_EVENT } from '@app/contracts';
 import { Injectable } from '@nestjs/common';
 import { v4 as uuid } from 'uuid';
 
-import { OutboxMessage } from './outbox-message.entity';
+import { OutboxRepository } from './outbox.repository';
 
+import type { OutboxMessage } from './outbox-message.entity';
 import type { AnyEventEnvelope, EventPayloadMap, EventType, RoutingKey } from '@app/contracts';
 import type { EntityManager } from 'typeorm';
 
@@ -26,6 +27,8 @@ export interface EnqueueOptions<TType extends EventType> {
  */
 @Injectable()
 export class OutboxService {
+  constructor(private readonly repository: OutboxRepository) {}
+
   async enqueue<TType extends EventType>(
     manager: EntityManager,
     options: EnqueueOptions<TType>,
@@ -41,7 +44,7 @@ export class OutboxService {
       payload: options.payload,
     } as AnyEventEnvelope;
 
-    const message = manager.create(OutboxMessage, {
+    return this.repository.add(manager, {
       id: envelope.id,
       documentId: options.documentId,
       type: options.type,
@@ -54,7 +57,5 @@ export class OutboxService {
       attempts: 0,
       lastError: null,
     });
-
-    return manager.save(OutboxMessage, message);
   }
 }

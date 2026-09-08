@@ -6,6 +6,8 @@ import { BaseOcrProcessor } from './ocr/base-ocr-processor';
 import { OcrProcessorRegistry } from './ocr/ocr-processor.registry';
 import { OCR_PROCESSORS } from './ocr/ocr.tokens';
 import { DeterministicOcrProcessor } from './ocr/processors/deterministic-ocr.processor';
+import { OcrResultsRepository } from './repositories/ocr-results.repository';
+import { OcrService } from './services/ocr.service';
 import { BaseDocumentValidator } from './validation/base-document-validator';
 import { DocumentValidatorRegistry } from './validation/document-validator.registry';
 import { DOCUMENT_VALIDATORS } from './validation/validation.tokens';
@@ -39,7 +41,15 @@ const DOCUMENT_VALIDATOR_CLASSES = [ExtractedTextValidator, InvoiceFieldsValidat
     },
     OcrProcessorRegistry,
     DocumentValidatorRegistry,
+    OcrResultsRepository,
+    OcrService,
   ],
-  exports: [OcrProcessorRegistry, DocumentValidatorRegistry, TypeOrmModule],
+  exports: [
+    OcrProcessorRegistry,
+    DocumentValidatorRegistry,
+    OcrResultsRepository,
+    OcrService,
+    TypeOrmModule,
+  ],
 })
 export class OcrModule {}

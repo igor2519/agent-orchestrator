@@ -13,13 +13,12 @@ import { IncludeFileUpload } from '../common/decorators/include-file-upload.deco
 import { SuccessDto } from '../common/dto';
 import { ErrorDto } from '../common/dto/error.dto';
 import { ValidationErrorDto } from '../common/dto/validation-error.dto';
-import { ZodValidationPipe } from '../common/pipes';
+import { JoiValidationPipe } from '../common/pipes';
 
 import { UpdateUserDto } from './dto';
 import { UploadUserFiles } from './dto/upload-user-files.dto';
+import { updateUserSchema, uploadUserFilesSchema } from './joi-validations';
 import { UsersService } from './users.service';
-import { updateUserSchema } from './validations';
-import { uploadUserFilesSchema } from './validations/upload-user-files.schema';
 
 @ApiTags('Users')
 @Controller('users')
@@ -41,7 +40,7 @@ export class UsersController {
   @Patch('/profile')
   update(
     @Req() req: RequestWithUser,
-    @Body(new ZodValidationPipe(updateUserSchema)) updateUserDto: UpdateUserDto,
+    @Body(new JoiValidationPipe(updateUserSchema)) updateUserDto: UpdateUserDto,
   ) {
     return this.usersService.update(req.user.id, updateUserDto);
   }
@@ -55,7 +54,7 @@ export class UsersController {
   @Authorized()
   @Patch('/gallery')
   updateMultipleFile(
-    @Body(new ZodValidationPipe(uploadUserFilesSchema)) uploadUserFilesDto: UploadUserFiles,
+    @Body(new JoiValidationPipe(uploadUserFilesSchema)) uploadUserFilesDto: UploadUserFiles,
   ) {
     console.log(uploadUserFilesDto);
     return new SuccessDto();

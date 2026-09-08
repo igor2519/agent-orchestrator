@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { InboxMessage } from './inbox/inbox-message.entity';
+import { InboxRepository } from './inbox/inbox.repository';
 import { InboxService } from './inbox/inbox.service';
-import { MessagingOpsController } from './messaging-ops.controller';
+import { MessagingOpsService } from './messaging-ops.service';
 import { MessagingBootstrap } from './messaging.bootstrap';
 import { EVENT_CONTROLLERS, MESSAGING_OPTIONS } from './messaging.tokens';
 import { OutboxMessage } from './outbox/outbox-message.entity';
 import { OutboxRelayService } from './outbox/outbox-relay.service';
+import { OutboxRepository } from './outbox/outbox.repository';
 import { OutboxService } from './outbox/outbox.service';
 import { AmqpConnection } from './rabbitmq/amqp-connection';
 import { EventDispatcherService } from './rabbitmq/event-dispatcher.service';
@@ -24,11 +26,6 @@ export interface MessagingModuleOptions extends MessagingOptions {
   controllers?: Type<unknown>[];
   /** Extra providers the controllers depend on. */
   imports?: DynamicModule['imports'];
-  /**
-   * Mounts the HTTP operations controller. Only the API service serves HTTP;
-   * worker services run as application contexts with no listener.
-   */
-  exposeOpsController?: boolean;
 }
 
 @Module({})
@@ -46,9 +43,6 @@ export class MessagingModule {
         TypeOrmModule.forFeature([OutboxMessage, InboxMessage]),
         ...(options.imports ?? []),
       ],
-      // Only the API serves HTTP; worker services run as application contexts and
-      // register no controllers at all.
-      controllers: options.exposeOpsController ? [MessagingOpsController] : [],
       providers: [
         { provide: MESSAGING_OPTIONS, useValue: MessagingModule.toOptions(options) },
         ...controllers,
@@ -58,13 +52,25 @@ export class MessagingModule {
           inject: controllers,
         },
         AmqpConnection,
+        InboxRepository,
+        OutboxRepository,
         InboxService,
         OutboxService,
+        MessagingOpsService,
         OutboxRelayService,
         EventDispatcherService,
         MessagingBootstrap,
       ],
-      exports: [OutboxService, OutboxRelayService, AmqpConnection, MESSAGING_OPTIONS],
+      exports: [
+        OutboxService,
+        OutboxRepository,
+        InboxService,
+        InboxRepository,
+        OutboxRelayService,
+        MessagingOpsService,
+        AmqpConnection,
+        MESSAGING_OPTIONS,
+      ],
     };
   }
 

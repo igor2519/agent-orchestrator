@@ -1,12 +1,12 @@
 import { BaseLogger } from '@app/logger';
 import { Inject, Injectable } from '@nestjs/common';
-import { DataSource, IsNull, LessThanOrEqual } from 'typeorm';
 
 import { MESSAGING_OPTIONS } from '../messaging.tokens';
 import { AmqpConnection } from '../rabbitmq/amqp-connection';
 
-import { OutboxMessage } from './outbox-message.entity';
+import { OutboxRepository } from './outbox.repository';
 
+import type { OutboxMessage } from './outbox-message.entity';
 import type { MessagingOptions } from '../messaging.tokens';
 
 /**
@@ -26,7 +26,7 @@ export class OutboxRelayService {
 
   constructor(
     @Inject(MESSAGING_OPTIONS) private readonly options: MessagingOptions,
-    private readonly dataSource: DataSource,
+    private readonly repository: OutboxRepository,
     private readonly amqp: AmqpConnection,
     private readonly logger: BaseLogger,
   ) {}
@@ -66,18 +66,7 @@ export class OutboxRelayService {
   }
 
   private async publishDueMessages(): Promise<number> {
-    const due = await this.dataSource.transaction(async (manager) =>
-      manager
-        .createQueryBuilder(OutboxMessage, 'outbox')
-        .setLock('pessimistic_write')
-        .setOnLocked('skip_locked')
-        .where({ publishedAt: IsNull(), availableAt: LessThanOrEqual(new Date()) })
-        .orderBy('outbox.available_at', 'ASC')
-        .addOrderBy('outbox.sequence', 'ASC')
-        .limit(this.options.relayBatchSize)
-        .getMany(),
-    );
-
+    const due = await this.repository.claimDue(this.options.relayBatchSize);
     let published = 0;
 
     for (const message of due) {
@@ -90,11 +79,7 @@ export class OutboxRelayService {
 
       try {
         await this.amqp.publish(message.routingKey, message.envelope);
-        await this.dataSource.manager.update(
-          OutboxMessage,
-          { id: message.id },
-          { publishedAt: new Date(), attempts: message.attempts + 1, lastError: null },
-        );
+        await this.repository.markPublished(message.id, message.attempts + 1);
         published += 1;
         logger.debug('Outbox message published');
       } catch (error) {
@@ -112,19 +97,15 @@ export class OutboxRelayService {
   ): Promise<void> {
     const attempts = message.attempts + 1;
     const exhausted = attempts >= this.options.relayMaxAttempts;
+    // Park an exhausted row far outside the polling window: it stays unpublished
+    // and visible to an operator instead of being retried forever.
+    const availableAt = new Date(Date.now() + (exhausted ? 24 * 60 * 60_000 : 5_000));
 
-    await this.dataSource.manager.update(
-      OutboxMessage,
-      { id: message.id },
-      {
-        attempts,
-        lastError: error instanceof Error ? error.message : String(error),
-        // Park the row out of the polling window; it stays unpublished and
-        // visible for an operator rather than being retried forever.
-        availableAt: exhausted
-          ? new Date(Date.now() + 24 * 60 * 60_000)
-          : new Date(Date.now() + 5_000),
-      },
+    await this.repository.markFailed(
+      message.id,
+      attempts,
+      error instanceof Error ? error.message : String(error),
+      availableAt,
     );
 
     if (exhausted) {

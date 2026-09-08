@@ -24,6 +24,7 @@ import { NotificationModule } from './notification.module';
       ...envConfig().rabbitmq,
       queue: Queue.Notification,
       controllers: [NotificationEventsController],
+      imports: [NotificationModule],
     }),
   ],
 })

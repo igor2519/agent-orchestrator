@@ -29,7 +29,7 @@ export class DeterministicDocumentProcessor extends BaseDocumentProcessor {
 
   // The contract is async because real processors perform I/O; this deterministic
   // stand-in does not.
-  // eslint-disable-next-line @typescript-eslint/require-await
+ 
   async process(input: ProcessingInput): Promise<ProcessingOutcome> {
     const digest = createHash('sha256').update(input.documentReference).digest();
     const bucket = digest[3] % 20;

@@ -6,6 +6,8 @@ import { BaseDocumentProcessor } from './processing/base-document-processor';
 import { DocumentProcessorRegistry } from './processing/document-processor.registry';
 import { DOCUMENT_PROCESSORS } from './processing/processing.tokens';
 import { DeterministicDocumentProcessor } from './processing/processors/deterministic-document.processor';
+import { ProcessingResultsRepository } from './repositories/processing-results.repository';
+import { ProcessingService } from './services/processing.service';
 
 /**
  * The extension point of this service: add a processor class to the list and it
@@ -24,7 +26,14 @@ const DOCUMENT_PROCESSOR_CLASSES = [DeterministicDocumentProcessor];
       inject: DOCUMENT_PROCESSOR_CLASSES,
     },
     DocumentProcessorRegistry,
+    ProcessingResultsRepository,
+    ProcessingService,
   ],
-  exports: [DocumentProcessorRegistry, TypeOrmModule],
+  exports: [
+    DocumentProcessorRegistry,
+    ProcessingResultsRepository,
+    ProcessingService,
+    TypeOrmModule,
+  ],
 })
 export class ProcessingModule {}

@@ -1,6 +1,11 @@
 import { EventType } from '@app/contracts';
 
-import { MessageController, OnEvent, getSubscriptions, isMessageController } from './event-controller';
+import {
+  MessageController,
+  OnEvent,
+  getSubscriptions,
+  isMessageController,
+} from './event-controller';
 
 import type { EventContext } from './messaging.tokens';
 

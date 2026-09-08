@@ -1,10 +1,10 @@
 import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
 
-import { ReceivedCallback } from './received-callback.entity';
-import { WebhookSignatureService } from './webhook-signature.service';
+import { JoiValidationPipe } from 'src/features/common/pipes';
+
+import { listCallbacksQuerySchema, receivedCallbackSchema } from './joi-validations';
+import { MockReceiverService } from './mock-receiver.service';
 
 /**
  * Stand-in for a customer's webhook endpoint.
@@ -16,44 +16,22 @@ import { WebhookSignatureService } from './webhook-signature.service';
 @ApiTags('Mock receiver')
 @Controller('mock/callbacks')
 export class MockReceiverController {
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-    private readonly signatures: WebhookSignatureService,
-  ) {}
+  constructor(private readonly mockReceiverService: MockReceiverService) {}
 
   @ApiOperation({ summary: 'Accept a webhook as a customer system would' })
   @HttpCode(HttpStatus.OK)
   @Post()
-  async receive(
-    @Body() body: Record<string, unknown>,
+  receive(
+    @Body(new JoiValidationPipe(receivedCallbackSchema)) body: Record<string, unknown>,
     @Headers('x-signature') signature?: string,
     @Headers('x-timestamp') timestamp?: string,
   ) {
-    const raw = JSON.stringify(body);
-    const provided = signature?.replace(/^sha256=/, '') ?? '';
-    const signatureValid = Boolean(timestamp) && this.signatures.verify(raw, timestamp!, provided);
-
-    await this.dataSource.manager.save(
-      ReceivedCallback,
-      this.dataSource.manager.create(ReceivedCallback, {
-        documentId: (body.documentId as string | undefined) ?? null,
-        correlationId: (body.correlationId as string | undefined) ?? null,
-        eventType: (body.event as string | undefined) ?? null,
-        signatureValid,
-        body,
-      }),
-    );
-
-    return { received: true, signatureValid };
+    return this.mockReceiverService.receive(body, signature, timestamp);
   }
 
   @ApiOperation({ summary: 'Inspect callbacks this receiver has accepted' })
   @Get()
-  async list(@Query('documentId') documentId?: string) {
-    return this.dataSource.manager.find(ReceivedCallback, {
-      where: documentId ? { documentId } : {},
-      order: { createdAt: 'DESC' },
-      take: 50,
-    });
+  list(@Query(new JoiValidationPipe(listCallbacksQuerySchema)) query: { documentId?: string }) {
+    return this.mockReceiverService.list(query.documentId);
   }
 }

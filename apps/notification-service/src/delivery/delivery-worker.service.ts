@@ -3,14 +3,16 @@ import { BaseLogger } from '@app/logger';
 import { OutboxService, nextAttemptAt } from '@app/messaging';
 import { Inject, Injectable, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, LessThanOrEqual } from 'typeorm';
+import { DataSource } from 'typeorm';
 
 import envConfig from '../config/env.config';
-import { DeliveryAttempt } from '../entities/delivery-attempt.entity';
-import { DeliveryStatus, NotificationDelivery } from '../entities/notification-delivery.entity';
+import { DeliveryStatus } from '../entities/notification-delivery.entity';
+import { DeliveryAttemptsRepository } from '../repositories/delivery-attempts.repository';
+import { NotificationDeliveriesRepository } from '../repositories/notification-deliveries.repository';
 
 import { WebhookClient } from './webhook-client';
 
+import type { NotificationDelivery } from '../entities/notification-delivery.entity';
 import type { DeliveryAttemptSummary } from '@app/contracts';
 import type { ConfigType } from '@nestjs/config';
 import type { EntityManager } from 'typeorm';
@@ -18,10 +20,9 @@ import type { EntityManager } from 'typeorm';
 /**
  * Sends queued webhooks outside any consumer transaction.
  *
- * Deliveries are claimed with `FOR UPDATE SKIP LOCKED`, so multiple instances can
- * run without sending the same webhook twice. Each attempt is logged whatever the
- * outcome, and the terminal result is published back onto the exchange so the API
- * can show it.
+ * Each attempt is logged whatever the outcome, and the terminal result is
+ * published back onto the exchange - carrying the whole attempt log - so the API
+ * can show delivery outcomes without reading this service's database.
  */
 @Injectable()
 export class DeliveryWorker implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -30,6 +31,8 @@ export class DeliveryWorker implements OnApplicationBootstrap, OnApplicationShut
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly deliveries: NotificationDeliveriesRepository,
+    private readonly attempts: DeliveryAttemptsRepository,
     private readonly webhooks: WebhookClient,
     private readonly outbox: OutboxService,
     private readonly logger: BaseLogger,
@@ -57,15 +60,13 @@ export class DeliveryWorker implements OnApplicationBootstrap, OnApplicationShut
     this.running = true;
 
     try {
-      const due = await this.claimDue();
-      let processed = 0;
+      const due = await this.deliveries.claimDue(this.config.webhook.batchSize);
 
       for (const delivery of due) {
         await this.attemptDelivery(delivery);
-        processed += 1;
       }
 
-      return processed;
+      return due.length;
     } catch (error) {
       this.logger.error('Delivery worker tick failed', error);
 
@@ -73,41 +74,6 @@ export class DeliveryWorker implements OnApplicationBootstrap, OnApplicationShut
     } finally {
       this.running = false;
     }
-  }
-
-  /** Full attempt history for the delivery, newest write included. */
-  private static async buildAttemptLog(
-    manager: EntityManager,
-    deliveryId: string,
-    latest: DeliveryAttempt,
-  ): Promise<DeliveryAttemptSummary[]> {
-    const attempts = await manager.find(DeliveryAttempt, {
-      where: { deliveryId },
-      order: { attemptNumber: 'ASC' },
-    });
-    const all = attempts.some((a) => a.id === latest.id) ? attempts : [...attempts, latest];
-
-    return all.map((a) => ({
-      attemptNumber: a.attemptNumber,
-      statusCode: a.statusCode,
-      succeeded: a.succeeded,
-      latencyMs: a.latencyMs,
-      error: a.error,
-      at: (a.createdAt ?? new Date()).toISOString(),
-    }));
-  }
-
-  private async claimDue(): Promise<NotificationDelivery[]> {
-    return this.dataSource.transaction(async (manager) =>
-      manager
-        .createQueryBuilder(NotificationDelivery, 'delivery')
-        .setLock('pessimistic_write')
-        .setOnLocked('skip_locked')
-        .where({ status: DeliveryStatus.Pending, nextAttemptAt: LessThanOrEqual(new Date()) })
-        .orderBy('delivery.next_attempt_at', 'ASC')
-        .limit(this.config.webhook.batchSize)
-        .getMany(),
-    );
   }
 
   private async attemptDelivery(delivery: NotificationDelivery): Promise<void> {
@@ -121,37 +87,29 @@ export class DeliveryWorker implements OnApplicationBootstrap, OnApplicationShut
 
     // The network call happens here, deliberately outside a transaction.
     const result = await this.webhooks.send(delivery.callbackUrl, delivery.payload);
-    const exhausted = attemptNumber >= this.config.webhook.maxAttempts;
-    const giveUp = result.permanent || exhausted;
+    const giveUp = result.permanent || attemptNumber >= this.config.webhook.maxAttempts;
 
     await this.dataSource.transaction(async (manager) => {
-      const attempt = await manager.save(
-        DeliveryAttempt,
-        manager.create(DeliveryAttempt, {
-          deliveryId: delivery.id,
-          attemptNumber,
-          statusCode: result.statusCode,
-          latencyMs: result.latencyMs,
-          succeeded: result.succeeded,
-          error: result.error,
-          responseSnippet: result.responseSnippet,
-        }),
-      );
+      await this.attempts.save(manager, {
+        deliveryId: delivery.id,
+        attemptNumber,
+        statusCode: result.statusCode,
+        latencyMs: result.latencyMs,
+        succeeded: result.succeeded,
+        error: result.error,
+        responseSnippet: result.responseSnippet,
+      });
 
-      const attemptLog = await DeliveryWorker.buildAttemptLog(manager, delivery.id, attempt);
+      const attemptLog = await this.buildAttemptLog(manager, delivery.id);
 
       if (result.succeeded) {
-        await manager.update(
-          NotificationDelivery,
-          { id: delivery.id },
-          {
-            status: DeliveryStatus.Delivered,
-            attempts: attemptNumber,
-            lastStatusCode: result.statusCode,
-            lastError: null,
-            deliveredAt: new Date(),
-          },
-        );
+        await this.deliveries.update(manager, delivery.id, {
+          status: DeliveryStatus.Delivered,
+          attempts: attemptNumber,
+          lastStatusCode: result.statusCode,
+          lastError: null,
+          deliveredAt: new Date(),
+        });
 
         await this.outbox.enqueue(manager, {
           type: EventType.NotificationDelivered,
@@ -171,16 +129,12 @@ export class DeliveryWorker implements OnApplicationBootstrap, OnApplicationShut
       }
 
       if (giveUp) {
-        await manager.update(
-          NotificationDelivery,
-          { id: delivery.id },
-          {
-            status: DeliveryStatus.Undeliverable,
-            attempts: attemptNumber,
-            lastStatusCode: result.statusCode,
-            lastError: result.error,
-          },
-        );
+        await this.deliveries.update(manager, delivery.id, {
+          status: DeliveryStatus.Undeliverable,
+          attempts: attemptNumber,
+          lastStatusCode: result.statusCode,
+          lastError: result.error,
+        });
 
         await this.outbox.enqueue(manager, {
           type: EventType.NotificationFailed,
@@ -199,16 +153,12 @@ export class DeliveryWorker implements OnApplicationBootstrap, OnApplicationShut
         return;
       }
 
-      await manager.update(
-        NotificationDelivery,
-        { id: delivery.id },
-        {
-          attempts: attemptNumber,
-          lastStatusCode: result.statusCode,
-          lastError: result.error,
-          nextAttemptAt: nextAttemptAt(attemptNumber),
-        },
-      );
+      await this.deliveries.update(manager, delivery.id, {
+        attempts: attemptNumber,
+        lastStatusCode: result.statusCode,
+        lastError: result.error,
+        nextAttemptAt: nextAttemptAt(attemptNumber),
+      });
     });
 
     if (result.succeeded) {
@@ -221,5 +171,21 @@ export class DeliveryWorker implements OnApplicationBootstrap, OnApplicationShut
     } else {
       logger.warn('Webhook delivery failed, will retry', { statusCode: result.statusCode });
     }
+  }
+
+  private async buildAttemptLog(
+    manager: EntityManager,
+    deliveryId: string,
+  ): Promise<DeliveryAttemptSummary[]> {
+    const attempts = await this.attempts.findByDelivery(manager, deliveryId);
+
+    return attempts.map((attempt) => ({
+      attemptNumber: attempt.attemptNumber,
+      statusCode: attempt.statusCode,
+      succeeded: attempt.succeeded,
+      latencyMs: attempt.latencyMs,
+      error: attempt.error,
+      at: (attempt.createdAt ?? new Date()).toISOString(),
+    }));
   }
 }
