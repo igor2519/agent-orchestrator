@@ -1,18 +1,18 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 
-import { LoggerModule } from '../logger/logger.module';
-import { MailingModule } from '../mailing/mailing.module';
-import { UsersModule } from '../users/users.module';
+import { AuthService } from './services';
+import { ApiKeyStrategy } from './strategies';
 
-import { AuthController } from './auth.controller';
-import { AuthService, JwtOtpService } from './services';
-import { ApiKeyStrategy, CookieStrategy, LocalStrategy } from './strategies';
-
+/**
+ * Server-to-server authentication for customer systems.
+ *
+ * Only the `x-api-key` strategy remains: the pipeline is machine-to-machine, so
+ * there is no interactive sign-in, session or user model to support.
+ */
 @Module({
-  imports: [UsersModule, PassportModule, MailingModule, LoggerModule],
-  controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, CookieStrategy, ApiKeyStrategy, JwtOtpService],
+  imports: [PassportModule],
+  providers: [AuthService, ApiKeyStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

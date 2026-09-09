@@ -1,4 +1,5 @@
 import { PermanentError, TransientError } from '@app/messaging';
+import { describe, it, expect } from '@jest/globals';
 
 import { DeterministicOcrProcessor } from './deterministic-ocr.processor';
 

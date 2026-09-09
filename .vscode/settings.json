@@ -1,4 +1,9 @@
 {
+  // Use the TypeScript the repo pins (5.9.3) rather than the editor's bundled
+  // compiler. A newer compiler reports deprecations - such as moduleResolution
+  // node10 - that do not apply to the version this project actually builds with.
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "eslint.format.enable": true,

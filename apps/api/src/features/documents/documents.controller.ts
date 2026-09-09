@@ -47,6 +47,7 @@ import { DocumentTicketService } from './services/document-ticket.service';
 import { DocumentsService } from './services/documents.service';
 
 import type { ListDocumentsInput, UploadDocumentInput } from './joi-validations';
+import type { MulterFile } from '../common/types';
 import type { MessageEvent } from '@nestjs/common';
 import type { Response } from 'express';
 import type { Observable } from 'rxjs';
@@ -142,7 +143,7 @@ export class DocumentsController {
   @UseInterceptors(FileInterceptor('file'))
   @Post('upload')
   upload(
-    @UploadedFile() file: Express.Multer.File | undefined,
+    @UploadedFile() file: MulterFile | undefined,
     @Body(new JoiValidationPipe(uploadDocumentSchema)) body: UploadDocumentInput,
     @Headers(IDEMPOTENCY_HEADER) idempotencyKey?: string,
   ): Promise<DocumentAcceptedDto> {
@@ -152,9 +153,7 @@ export class DocumentsController {
 
     // Validated with the same pipe as any other input, so a rejected upload
     // produces the field-keyed error shape clients already handle.
-    const validated = new JoiValidationPipe<Express.Multer.File>(uploadedFileSchema).transform(
-      file,
-    );
+    const validated = new JoiValidationPipe<MulterFile>(uploadedFileSchema).transform(file);
 
     return this.documentsService.submitFile(validated, body, idempotencyKey.trim());
   }

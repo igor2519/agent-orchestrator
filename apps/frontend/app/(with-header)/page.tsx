@@ -12,7 +12,7 @@ export default async function HomePage() {
         <br />
         {user ? `Welcome ${user.email}!` : 'Please sign in'}
       </h1>
-      <Link className="flex w-[250px] self-center btn btn-primary" href="/dummy-data" type="button">
+      <Link className="flex w-[250px] self-center btn btn-primary" href="/documents" type="button">
         Try to load dummy data
       </Link>
     </main>

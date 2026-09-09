@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/require-await -- these implement an
    intentionally async contract; the deterministic stand-ins perform no I/O */
 import { PermanentError } from '@app/messaging';
+import { describe, it, expect } from '@jest/globals';
 
 import { BaseOcrProcessor } from './base-ocr-processor';
 import { OcrProcessorRegistry } from './ocr-processor.registry';

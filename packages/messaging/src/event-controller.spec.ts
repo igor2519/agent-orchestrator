@@ -1,4 +1,5 @@
 import { EventType } from '@app/contracts';
+import { describe, it, expect } from '@jest/globals';
 
 import {
   MessageController,

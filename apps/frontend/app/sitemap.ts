@@ -5,7 +5,7 @@ import type { MetadataRoute } from 'next';
 const baseUrl = envUtil.getEnv().frontendUrl;
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const routesMap = ['/', '/dummy-data'].map((route) => ({
+  const routesMap = ['/', '/documents'].map((route) => ({
     url: `${baseUrl}${route}`,
     lastModified: new Date().toISOString(),
   }));

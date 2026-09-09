@@ -15,7 +15,6 @@ import { RequestContextMiddleware } from 'src/features/common/middleware/request
 import { CustomerSettingsModule } from 'src/features/customer-settings/customer-settings.module';
 import { DocumentEventsController } from 'src/features/documents/controllers/document-events.controller';
 import { DocumentsModule } from 'src/features/documents/documents.module';
-import { DummyDataModule } from 'src/features/dummy-data/dummy-data.module';
 import { FileUploadModule } from 'src/features/file-upload/file-upload.module';
 import { MessagingOpsModule } from 'src/features/messaging-ops/messaging-ops.module';
 import { MockReceiverModule } from 'src/features/mock-receiver/mock-receiver.module';
@@ -47,7 +46,6 @@ import { AppService } from './app.service';
     PassportOptionsModule,
     AuthModule,
     UsersModule,
-    DummyDataModule,
     DocumentsModule,
     CustomerSettingsModule,
     MockReceiverModule,

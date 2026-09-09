@@ -19,6 +19,7 @@ import { IdempotencyKeysRepository } from '../repositories/idempotency-keys.repo
 
 import { ContentHashService } from './content-hash.service';
 
+import type { MulterFile } from '../../common/types';
 import type { DocumentAcceptedDto } from '../dto';
 import type { Document } from '../entities/document.entity';
 import type { ListDocumentsInput, SubmitDocumentInput } from '../joi-validations';
@@ -203,7 +204,7 @@ export class DocumentsService {
    * inline for the pipeline to read.
    */
   async submitFile(
-    file: Express.Multer.File,
+    file: MulterFile,
     input: { customerId: string; documentReference?: string; notificationMode?: NotificationMode },
     idempotencyKey: string,
   ): Promise<DocumentAcceptedDto> {

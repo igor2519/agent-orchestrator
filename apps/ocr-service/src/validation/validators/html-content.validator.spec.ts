@@ -1,3 +1,5 @@
+import { describe, expect, it } from '@jest/globals';
+
 import { HtmlContentValidator } from './html-content.validator';
 
 import type { ValidationInput } from '../base-document-validator';

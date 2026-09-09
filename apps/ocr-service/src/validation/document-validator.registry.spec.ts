@@ -1,3 +1,5 @@
+import { describe, it, expect } from '@jest/globals';
+
 import { DocumentValidatorRegistry } from './document-validator.registry';
 import { ExtractedTextValidator } from './validators/extracted-text.validator';
 import { InvoiceFieldsValidator } from './validators/invoice-fields.validator';

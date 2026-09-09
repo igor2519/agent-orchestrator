@@ -1,3 +1,5 @@
+import { describe, it, expect } from '@jest/globals';
+
 import { PermanentError, TransientError, classifyError, isClassifiedError } from './errors';
 
 describe('classifyError', () => {

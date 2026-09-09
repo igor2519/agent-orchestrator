@@ -1,5 +1,7 @@
 import { createHmac } from 'node:crypto';
 
+import { describe, it, expect, afterEach, jest } from '@jest/globals';
+
 import { WebhookProvider } from './webhook.provider';
 
 import type { NotificationDelivery } from '../entities/notification-delivery.entity';
@@ -20,14 +22,20 @@ describe('WebhookProvider', () => {
     global.fetch = originalFetch;
   });
 
+  /**
+   * Typed through its implementation rather than `mockResolvedValue`, so the
+   * recorded call arguments stay typed and can be read back without a cast.
+   */
   const stubFetch = (status: number) => {
-    const mock = jest.fn().mockResolvedValue({
-      ok: status >= 200 && status < 300,
-      status,
-      text: () => Promise.resolve('body'),
-    });
+    const mock = jest.fn((_url: string, _init?: RequestInit) =>
+      Promise.resolve({
+        ok: status >= 200 && status < 300,
+        status,
+        text: () => Promise.resolve('body'),
+      } as Response),
+    );
 
-    global.fetch = mock as never;
+    global.fetch = mock as unknown as typeof fetch;
 
     return mock;
   };
@@ -86,10 +94,10 @@ describe('WebhookProvider', () => {
 
       await provider.deliver(delivery());
 
-      const [, init] = mock.mock.calls[0] as [string, RequestInit];
-      const headers = init.headers as Record<string, string>;
+      const [, init] = mock.mock.calls[0];
+      const headers = init?.headers as Record<string, string>;
       const expected = createHmac('sha256', secret)
-        .update(`${headers['x-timestamp']}.${init.body as string}`)
+        .update(`${headers['x-timestamp']}.${init?.body as string}`)
         .digest('hex');
 
       expect(headers['x-signature']).toBe(`sha256=${expected}`);
@@ -130,7 +138,9 @@ describe('WebhookProvider', () => {
     });
 
     it('treats a network failure as retryable and records the error', async () => {
-      global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED')) as never;
+      global.fetch = jest.fn((_url: string, _init?: RequestInit) =>
+        Promise.reject(new Error('ECONNREFUSED')),
+      ) as unknown as typeof fetch;
 
       const result = await provider.deliver(delivery());
 

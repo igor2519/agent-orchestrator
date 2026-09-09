@@ -1,4 +1,5 @@
 import { PermanentError } from '@app/messaging';
+import { describe, it, expect } from '@jest/globals';
 
 import { LinePrefixProcessor } from './line-prefix.processor';
 

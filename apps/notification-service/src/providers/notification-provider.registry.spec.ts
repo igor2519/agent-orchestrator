@@ -1,3 +1,5 @@
+import { describe, it, expect } from '@jest/globals';
+
 import { BaseNotificationProvider, NotificationChannel } from './base-notification-provider';
 import { NotificationProviderRegistry } from './notification-provider.registry';
 

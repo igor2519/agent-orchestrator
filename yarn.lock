@@ -1619,7 +1619,7 @@
   resolved "https://registry.yarnpkg.com/@jest/get-type/-/get-type-30.5.0.tgz#0fc76dd792523bf05d7715a18041c185f9128cc4"
   integrity sha512-9/2VUPitAjmBzbvDvqrxmvB7BzWsBW0WmkkojX1ODuxX1NLGxx9gfaZpHB0z8DtJ9uhGNmZG/VXBhf8uO0OV8Q==
 
-"@jest/globals@30.5.1":
+"@jest/globals@30.5.1", "@jest/globals@^30.5.1":
   version "30.5.1"
   resolved "https://registry.yarnpkg.com/@jest/globals/-/globals-30.5.1.tgz#2794ea50e7ef7dea2675d04467b9eb7c42f17713"
   integrity sha512-VhqvQ251XIC7pk46YymI3HCeBLOdvriDw9zibekodAHEwoVvbVVgpU5H13GvmyOAzxtZCfsm1uvzqkaqJf2I+g==

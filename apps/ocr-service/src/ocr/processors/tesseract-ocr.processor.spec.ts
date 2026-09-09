@@ -1,4 +1,5 @@
 import { PermanentError, TransientError } from '@app/messaging';
+import { describe, it, expect, jest } from '@jest/globals';
 
 import { TesseractOcrProcessor } from './tesseract-ocr.processor';
 
@@ -41,7 +42,9 @@ describe('TesseractOcrProcessor', () => {
     it('fails permanently when the reference cannot be fetched with a 4xx', async () => {
       const originalFetch = global.fetch;
 
-      global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 404 }) as never;
+      global.fetch = jest.fn((_url: string) =>
+        Promise.resolve({ ok: false, status: 404 } as Response),
+      ) as unknown as typeof fetch;
 
       await expect(
         processor.extract(input({ payloadUri: 'https://files.test/missing.png' })),
@@ -53,7 +56,9 @@ describe('TesseractOcrProcessor', () => {
     it('fails transiently when the reference returns a 5xx', async () => {
       const originalFetch = global.fetch;
 
-      global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 503 }) as never;
+      global.fetch = jest.fn((_url: string) =>
+        Promise.resolve({ ok: false, status: 503 } as Response),
+      ) as unknown as typeof fetch;
 
       await expect(
         processor.extract(input({ payloadUri: 'https://files.test/flaky.png' })),
@@ -65,7 +70,9 @@ describe('TesseractOcrProcessor', () => {
     it('fails transiently when the fetch itself throws', async () => {
       const originalFetch = global.fetch;
 
-      global.fetch = jest.fn().mockRejectedValue(new Error('ECONNRESET')) as never;
+      global.fetch = jest.fn((_url: string) =>
+        Promise.reject(new Error('ECONNRESET')),
+      ) as unknown as typeof fetch;
 
       await expect(
         processor.extract(input({ payloadUri: 'https://files.test/down.png' })),
