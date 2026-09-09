@@ -26,6 +26,10 @@ module.exports = withBundleAnalyzer({
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['api-client'],
+  // Emits .next/standalone with a self-contained server.js and only the modules
+  // actually traced as reachable. Both deploy.sh and the container image copy
+  // from that directory.
+  output: 'standalone',
   images: {
     // `images.domains` was removed in Next.js 16; the CDN host is covered by
     // getCdnImagePattern() in remotePatterns below.

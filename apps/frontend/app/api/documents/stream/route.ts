@@ -1,4 +1,5 @@
 import { envUtil } from 'src/utils';
+import { fetchUpstream, handleUpstream } from 'src/utils/upstream';
 
 // The stream must stay open, so it cannot be statically rendered or cached.
 export const dynamic = 'force-dynamic';
@@ -15,20 +16,23 @@ export const runtime = 'nodejs';
 export async function GET(): Promise<Response> {
   const env = envUtil.getEnv();
 
-  const upstream = await fetch(`${env.backendUrl}/documents/stream`, {
-    headers: { 'x-api-key': env.apiKey, accept: 'text/event-stream' },
-    cache: 'no-store',
-  });
+  return handleUpstream(env.backendUrl, async () => {
+    const upstream = await fetchUpstream(
+      `${env.backendUrl}/documents/stream`,
+      { headers: { 'x-api-key': env.apiKey, accept: 'text/event-stream' } },
+      env.backendUrl,
+    );
 
-  if (!upstream.ok || !upstream.body) {
-    return new Response('Unable to open document stream', { status: 502 });
-  }
+    if (!upstream.ok || !upstream.body) {
+      return new Response('Unable to open document stream', { status: 502 });
+    }
 
-  return new Response(upstream.body, {
-    headers: {
-      'content-type': 'text/event-stream',
-      'cache-control': 'no-cache, no-transform',
-      connection: 'keep-alive',
-    },
+    return new Response(upstream.body, {
+      headers: {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache, no-transform',
+        connection: 'keep-alive',
+      },
+    });
   });
 }

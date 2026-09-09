@@ -1,6 +1,9 @@
 import { DocumentStatus, EventType, FailureReason } from '@app/contracts';
 import { Injectable } from '@nestjs/common';
 
+import { AuditService } from 'src/features/audit';
+import { AuditAction, AuditActor } from 'src/features/audit/constants/audit-action';
+
 import { DocumentsRepository } from '../repositories/documents.repository';
 
 import { DocumentStreamService } from './document-stream.service';
@@ -22,6 +25,7 @@ export class DocumentProjectionService {
   constructor(
     private readonly documents: DocumentsRepository,
     private readonly stream: DocumentStreamService,
+    private readonly audit: AuditService,
   ) {}
 
   async apply({ manager, envelope, logger, onCommit }: EventContext): Promise<void> {
@@ -31,12 +35,20 @@ export class DocumentProjectionService {
       return;
     }
 
+    // Read before writing so the trail can record what the status actually moved
+    // from, rather than asserting a transition that may not have happened.
+    const before = await this.documents.findById(envelope.documentId, manager);
+
     const affected = await this.documents.applyProjection(manager, envelope.documentId, update);
 
     if (affected === 0) {
       logger.warn('Projection target document not found', { documentId: envelope.documentId });
 
       return;
+    }
+
+    if (before) {
+      await this.recordAudit(manager, before, update, envelope);
     }
 
     // Announced only once the projection has actually committed.
@@ -50,6 +62,79 @@ export class DocumentProjectionService {
         occurredAt: envelope.occurredAt,
       });
     });
+  }
+
+  /**
+   * Turns a projected change into a line of history.
+   *
+   * Delivery outcomes get their own actions because they are not status changes -
+   * a completed document whose webhook failed is still completed, and flattening
+   * both into STATUS_CHANGED would lose that distinction.
+   */
+  private async recordAudit(
+    manager: EventContext['manager'],
+    before: Document,
+    update: QueryDeepPartialEntity<Document>,
+    envelope: EventContext['envelope'],
+  ): Promise<void> {
+    const notificationStatus = update.notificationStatus as string | undefined;
+
+    const action =
+      notificationStatus === 'DELIVERED'
+        ? AuditAction.NotificationDelivered
+        : notificationStatus === 'UNDELIVERABLE'
+          ? AuditAction.NotificationFailed
+          : AuditAction.StatusChanged;
+
+    const toStatus = (update.status as DocumentStatus | undefined) ?? null;
+
+    // A projection that changed nothing observable is not worth a line.
+    if (action === AuditAction.StatusChanged && (toStatus === null || toStatus === before.status)) {
+      return;
+    }
+
+    await this.audit.record(manager, {
+      documentId: before.id,
+      customerId: before.customerId,
+      correlationId: envelope.correlationId,
+      action,
+      actor: AuditActor.Pipeline,
+      fromStatus: action === AuditAction.StatusChanged ? before.status : null,
+      toStatus: action === AuditAction.StatusChanged ? toStatus : null,
+      eventType: envelope.type,
+      eventId: envelope.id,
+      attempt: envelope.attempt,
+      detail: DocumentProjectionService.auditDetail(update),
+    });
+  }
+
+  /** The subset of a projection worth keeping in history, minus bulky result blobs. */
+  private static auditDetail(
+    update: QueryDeepPartialEntity<Document>,
+  ): Record<string, unknown> | null {
+    const detail: Record<string, unknown> = {};
+
+    if (update.errorCode !== undefined) {
+      detail.errorCode = update.errorCode;
+    }
+
+    if (update.errorMessage !== undefined) {
+      detail.errorMessage = update.errorMessage;
+    }
+
+    if (update.failureReason !== undefined) {
+      detail.failureReason = update.failureReason;
+    }
+
+    if (update.notificationAttempts !== undefined) {
+      detail.notificationAttempts = update.notificationAttempts;
+    }
+
+    if (update.notificationAttemptLog !== undefined) {
+      detail.attemptLog = update.notificationAttemptLog;
+    }
+
+    return Object.keys(detail).length > 0 ? detail : null;
   }
 
   private static toUpdate(

@@ -1,3 +1,10 @@
 {
-  "extends": "tsconfig/base.json"
+  "extends": "tsconfig/base.json",
+  // This config exists only to be extended and to give editors a root to resolve
+  // against. It must never compile anything itself: without `files`, TypeScript
+  // globs the whole monorepo and type-checks every app with base settings that
+  // have no decorators, no JSX and no `baseUrl`, producing hundreds of errors
+  // that do not correspond to any real build. Each package's own tsconfig is the
+  // one that compiles its sources.
+  "files": []
 }

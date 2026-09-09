@@ -8,7 +8,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
   return (
     <>
       <Header />
-      {children}
+      <div className="mx-auto w-full max-w-7xl px-6 py-8">{children}</div>
       <ToastContainer />
     </>
   );

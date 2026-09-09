@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { PRIMARY_BUTTON } from 'src/components/buttons';
+
 import type { FormEvent } from 'react';
 
 export type NotificationMode = 'WEBSOCKET' | 'WEBHOOK' | 'BOTH';
@@ -131,7 +133,11 @@ export function WebhookSettings({ customerId }: Props) {
         ))}
       </fieldset>
 
-      <button className="btn btn-primary self-start" disabled={status === 'saving'} type="submit">
+      <button
+        className={`${PRIMARY_BUTTON} self-start`}
+        disabled={status === 'saving'}
+        type="submit"
+      >
         {status === 'saving' ? 'Saving…' : 'Save settings'}
       </button>
 

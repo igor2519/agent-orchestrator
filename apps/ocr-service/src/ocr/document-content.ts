@@ -20,7 +20,7 @@ export const resolveContent = async (input: OcrInput): Promise<Buffer> => {
   }
 
   if (input.payloadUri) {
-    const { fetchContent } = await import('./fetch-content');
+    const { fetchContent } = await import('./fetch-content.js');
 
     return fetchContent(input.payloadUri, FETCH_TIMEOUT_MS);
   }

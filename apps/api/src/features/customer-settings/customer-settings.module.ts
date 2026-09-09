@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { CustomerSettingsController } from './customer-settings.controller';
-import { CustomerSettingsRepository } from './customer-settings.repository';
-import { CustomerSettingsService } from './customer-settings.service';
+import { CustomerSettingsController } from './controllers/customer-settings.controller';
 import { CustomerSettings } from './entities/customer-settings.entity';
+import { CustomerSettingsRepository } from './repositories/customer-settings.repository';
+import { CustomerSettingsService } from './services/customer-settings.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([CustomerSettings])],

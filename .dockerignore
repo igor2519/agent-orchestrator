@@ -1,0 +1,29 @@
+# The build context is the whole monorepo, so keeping it small matters.
+# `turbo prune` runs inside the image and needs the sources and manifests; it does
+# not need any of this.
+
+node_modules
+**/node_modules
+
+**/dist
+**/.next
+**/coverage
+**/.turbo
+
+.git
+.github
+.husky
+
+# Secrets must never enter a build context: anything copied in is recoverable
+# from the image, even if a later layer deletes it.
+**/.env
+**/.env.*
+!**/example.env
+
+packages/infrastructure/docker/data
+packages/infrastructure/terraform/.terraform
+packages/infrastructure/terraform/*.tfstate*
+
+**/*.log
+**/.DS_Store
+**/*.tsbuildinfo

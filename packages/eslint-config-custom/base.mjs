@@ -1,4 +1,6 @@
+import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import js from '@eslint/js';
 import prettierConfig from 'eslint-config-prettier';
@@ -13,6 +15,23 @@ import tseslint from 'typescript-eslint';
  *
  * Flat config (ESLint 9+). Consumers spread it into their `eslint.config.mjs`.
  */
+
+const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+
+/*
+ * Every workspace tsconfig, as explicit absolute paths. The mappings that
+ * resolve `src/...` imports live in each package's own tsconfig, so a resolver
+ * anchored on `process.cwd()` only sees them when ESLint runs from inside that
+ * package; editors run it from the repo root and reported every aliased import
+ * as unresolvable. Globs cannot be used here because the resolver expands them
+ * relative to the working directory and drops that directory's own match.
+ */
+const workspaceProjects = ['apps', 'packages'].flatMap((group) =>
+  readdirSync(resolve(repoRoot, group), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => resolve(repoRoot, group, entry.name, 'tsconfig.json'))
+    .filter((tsconfig) => existsSync(tsconfig)),
+);
 
 /** Rules shared by every package in the monorepo. */
 export const sharedRules = {
@@ -104,8 +123,10 @@ const base = [
       // eslint-plugin-import-x v4 resolver interface
       'import-x/resolver-next': [
         createTypeScriptImportResolver({
-          project: resolve(process.cwd(), 'tsconfig.json'),
+          // tried nearest-first for each linted file
+          project: workspaceProjects,
           alwaysTryTypes: true,
+          noWarnOnMultipleProjects: true,
         }),
       ],
     },

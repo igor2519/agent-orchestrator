@@ -1,20 +1,7 @@
-import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
-import { getServerUser } from 'src/utils/auth/get-server-user';
-
-export default async function HomePage() {
-  const user = await getServerUser();
-
-  return (
-    <main className="flex flex-col items-center">
-      <h1 className="text-center mt-10">
-        Boilerplate - Home page
-        <br />
-        {user ? `Welcome ${user.email}!` : 'Please sign in'}
-      </h1>
-      <Link className="flex w-[250px] self-center btn btn-primary" href="/documents" type="button">
-        Try to load dummy data
-      </Link>
-    </main>
-  );
+// Documents are the only surface this app exposes, so the root sends people
+// straight there rather than showing a landing page they would click through.
+export default function HomePage() {
+  redirect('/documents');
 }

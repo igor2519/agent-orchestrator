@@ -1,17 +1,12 @@
 import Joi from 'joi';
 
 import fileConstants, { singleImageUploadLimits } from 'src/constants/files';
-import { UserRole } from 'src/features/auth/enums';
 
 export const emailSchema = Joi.string().trim().lowercase().email().max(255);
 
 export const passwordSchema = Joi.string().min(8).max(255);
 
 export const uriSchema = Joi.string().trim().uri().max(1000);
-
-export const userRoleSchema = Joi.string()
-  .valid(...Object.values(UserRole))
-  .default(UserRole.User);
 
 /**
  * Shape of a Multer file as it reaches a controller.

@@ -12,8 +12,10 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
-import { CustomerSettingsService } from 'src/features/customer-settings/customer-settings.service';
+import { CustomerSettingsService } from 'src/features/customer-settings/services/customer-settings.service';
 
+import { AuditService } from '../../audit';
+import { AuditAction, AuditActor } from '../../audit/constants/audit-action';
 import { DocumentsRepository } from '../repositories/documents.repository';
 import { IdempotencyKeysRepository } from '../repositories/idempotency-keys.repository';
 
@@ -40,6 +42,7 @@ export class DocumentsService {
     private readonly contentHashes: ContentHashService,
     private readonly settings: CustomerSettingsService,
     private readonly outbox: OutboxService,
+    private readonly audit: AuditService,
     private readonly logger: BaseLogger,
   ) {}
 
@@ -118,6 +121,23 @@ export class DocumentsService {
           },
         });
 
+        await this.audit.record(manager, {
+          documentId: saved.id,
+          customerId: input.customerId,
+          correlationId,
+          action: AuditAction.DocumentSubmitted,
+          actor: AuditActor.Api,
+          toStatus: DocumentStatus.Received,
+          attempt: 1,
+          detail: {
+            documentReference: input.documentReference,
+            documentType: input.documentType,
+            contentHash,
+            notificationMode: settings.notificationMode,
+            source: 'JSON',
+          },
+        });
+
         return saved;
       });
 
@@ -177,6 +197,22 @@ export class DocumentsService {
           callbackUrl: context.callbackUrl ?? '',
           originalDocumentId: original.id,
           originalStatus: original.status,
+        },
+      });
+
+      await this.audit.record(manager, {
+        documentId: original.id,
+        customerId: context.customerId,
+        correlationId: original.correlationId,
+        action: AuditAction.DuplicateDetected,
+        actor: AuditActor.Api,
+        toStatus: original.status,
+        detail: {
+          documentReference: context.documentReference,
+          documentType: context.documentType,
+          contentHash: context.contentHash,
+          deduplicatedBy: 'CONTENT_HASH',
+          originalDocumentId: original.id,
         },
       });
     });
@@ -273,6 +309,24 @@ export class DocumentsService {
             file: fileInfo,
             payload: { contentBase64: file.buffer.toString('base64') },
             callbackUrl: settings.callbackUrl ?? '',
+          },
+        });
+
+        await this.audit.record(manager, {
+          documentId: saved.id,
+          customerId: input.customerId,
+          correlationId,
+          action: AuditAction.DocumentSubmitted,
+          actor: AuditActor.Api,
+          toStatus: DocumentStatus.Received,
+          attempt: 1,
+          detail: {
+            documentReference,
+            documentType,
+            contentHash,
+            notificationMode,
+            source: 'UPLOAD',
+            file: fileInfo,
           },
         });
 
@@ -445,6 +499,22 @@ export class DocumentsService {
           payload: document.payload ?? undefined,
           payloadUri: document.payloadUri ?? undefined,
           callbackUrl: document.callbackUrl ?? '',
+        },
+      });
+
+      await this.audit.record(manager, {
+        documentId: document.id,
+        customerId: document.customerId,
+        correlationId: document.correlationId,
+        action: AuditAction.RetryRequested,
+        actor: AuditActor.Operator,
+        fromStatus: DocumentStatus.Failed,
+        toStatus: DocumentStatus.Received,
+        attempt: attempts,
+        detail: {
+          clearedErrorCode: document.errorCode,
+          clearedErrorMessage: document.errorMessage,
+          clearedFailureReason: document.failureReason,
         },
       });
 

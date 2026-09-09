@@ -1,0 +1,22 @@
+# Provider binaries and modules, re-fetched by `terraform init`.
+# The AWS provider alone is ~650MB, well past GitHub's 100MB file limit.
+.terraform/
+.terraform.lock.hcl
+
+# State can contain generated passwords in plain text; it belongs in the
+# encrypted S3 backend configured in backend.tf, never in the repository.
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+
+# Variable files often hold real account ids, zone ids and secrets.
+# environments/*.tfvars is committed deliberately - keep secrets out of them.
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc

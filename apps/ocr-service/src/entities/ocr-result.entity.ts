@@ -39,10 +39,12 @@ export class OcrResult {
   @Column({ type: 'jsonb', nullable: true })
   ocr: OcrOutcome | null;
 
-  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  // Postgres stores this as '[]'::jsonb either way; spelling the cast here makes
+  // TypeORM's schema diff see a change on every generate and emit a no-op migration.
+  @Column({ type: 'jsonb', default: () => "'[]'" })
   issues: ValidationIssue[];
 
-  @Column({ name: 'validators_executed', type: 'jsonb', default: () => "'[]'::jsonb" })
+  @Column({ name: 'validators_executed', type: 'jsonb', default: () => "'[]'" })
   validatorsExecuted: string[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })

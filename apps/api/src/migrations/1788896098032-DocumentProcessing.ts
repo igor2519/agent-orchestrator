@@ -4,6 +4,8 @@ export class DocumentProcessing1788896098032 implements MigrationInterface {
   name = 'DocumentProcessing1788896098032';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // Required by the uuid_generate_v4() column defaults below.
+    await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
     await queryRunner.query(
       `CREATE TABLE "inbox_messages" ("event_id" uuid NOT NULL, "consumer" character varying(128) NOT NULL, "type" character varying(64) NOT NULL, "processed_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_e22cabc99c47a28c4c2dbe12bfd" PRIMARY KEY ("event_id", "consumer"))`,
     );

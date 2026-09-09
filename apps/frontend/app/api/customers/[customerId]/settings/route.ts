@@ -1,4 +1,5 @@
 import { envUtil } from 'src/utils';
+import { fetchUpstream, handleUpstream } from 'src/utils/upstream';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,15 +13,17 @@ const proxy = async (
 ): Promise<Response> => {
   const env = envUtil.getEnv();
 
-  const upstream = await fetch(`${env.backendUrl}/customers/${customerId}/settings`, {
-    ...init,
-    headers: { ...init.headers, 'x-api-key': env.apiKey },
-    cache: 'no-store',
-  });
+  return handleUpstream(env.backendUrl, async () => {
+    const upstream = await fetchUpstream(
+      `${env.backendUrl}/customers/${customerId}/settings`,
+      { ...init, headers: { ...init.headers, 'x-api-key': env.apiKey } },
+      env.backendUrl,
+    );
 
-  return new Response(await upstream.text(), {
-    status: upstream.status,
-    headers: { 'content-type': 'application/json' },
+    return new Response(await upstream.text(), {
+      status: upstream.status,
+      headers: { 'content-type': 'application/json' },
+    });
   });
 };
 

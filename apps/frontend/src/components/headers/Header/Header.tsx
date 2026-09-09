@@ -1,42 +1,53 @@
-import { UserCircleIcon } from '@heroicons/react/24/outline';
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
-import Avatar from 'src/components/Avatar/Avatar';
-import { getServerUser } from 'src/utils/auth/get-server-user';
+const LINKS = [
+  { href: '/documents', label: 'Workspace' },
+  { href: '/documents/all', label: 'All documents' },
+] as const;
 
-import { SignOutButton } from '../../auth/SignOutButton';
-
-export default async function Header() {
-  const user = await getServerUser();
+export default function Header() {
+  const pathname = usePathname();
 
   return (
-    <header className="top-0 w-full h-[60px] px-[40px] border-solid border-0 border-b-[1px] border-stone-200 text-white flex items-center justify-end bg-white shadow-[0_0px_16px_0px_rgba(22,74,162,0.06)]">
-      {user ? (
-        <div className="dropdown dropdown-bottom dropdown-end ">
-          <div className="btn m-1 bg-white hover:bg-slate-100 w-14" role="button" tabIndex={0}>
-            <Avatar imageUri={user.imageUri ?? ''} size={32} />
-          </div>
-          <ul className="dropdown-content z-[1] mt-1 menu p-2 shadow rounded-box w-52">
-            <li>
-              <Link className="text-black bg-white no-underline hover:bg-slate-100" href="/profile">
-                <UserCircleIcon className="w-4 h-4" />
-                Profile
-              </Link>
-            </li>
-            <li>
-              <SignOutButton />
-            </li>
-          </ul>
-        </div>
-      ) : (
-        <Link
-          className="flex justify-center items-center w-20 h-10 text-black bg-white no-underline hover:bg-slate-100 rounded-lg"
-          href="/sign-in"
-          type="button"
-        >
-          Sign In
+    <header className="sticky top-0 z-20 border-b border-stone-200/80 bg-white/80 backdrop-blur">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-8 px-6">
+        <Link className="flex items-center gap-2.5 no-underline" href="/documents">
+          <span
+            aria-hidden
+            className="grid h-8 w-8 place-items-center rounded-lg bg-[#1f53a6] text-sm font-bold text-white shadow-sm"
+          >
+            D
+          </span>
+          <span className="text-[15px] font-semibold tracking-tight text-stone-900">
+            Document processing
+          </span>
         </Link>
-      )}
+
+        <nav className="flex items-center gap-1">
+          {LINKS.map((link) => {
+            // `/documents` must not light up while `/documents/all` is open.
+            const active = pathname === link.href;
+
+            return (
+              <Link
+                aria-current={active ? 'page' : undefined}
+                className={`rounded-lg px-3 py-1.5 text-sm no-underline transition-colors ${
+                  active
+                    ? 'bg-[#1f53a6]/10 font-medium text-[#1f53a6]'
+                    : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+                }`}
+                href={link.href}
+                key={link.href}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
     </header>
   );
 }

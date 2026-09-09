@@ -15,10 +15,8 @@ import { RequestContextMiddleware } from 'src/features/common/middleware/request
 import { CustomerSettingsModule } from 'src/features/customer-settings/customer-settings.module';
 import { DocumentEventsController } from 'src/features/documents/controllers/document-events.controller';
 import { DocumentsModule } from 'src/features/documents/documents.module';
-import { FileUploadModule } from 'src/features/file-upload/file-upload.module';
 import { MessagingOpsModule } from 'src/features/messaging-ops/messaging-ops.module';
 import { MockReceiverModule } from 'src/features/mock-receiver/mock-receiver.module';
-import { UsersModule } from 'src/features/users/users.module';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -42,10 +40,8 @@ import { AppService } from './app.service';
       ],
     }),
     TypeOrmModule.forRoot(getTypeOrmModuleOptions()),
-    FileUploadModule.forRoot(),
     PassportOptionsModule,
     AuthModule,
-    UsersModule,
     DocumentsModule,
     CustomerSettingsModule,
     MockReceiverModule,

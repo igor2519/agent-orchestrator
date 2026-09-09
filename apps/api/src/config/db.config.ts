@@ -32,6 +32,6 @@ const getTypeOrmDefaultModuleOptions = (): TypeOrmModuleOptions => ({
  * Otherwise, it uses the default TypeORM module options.
  */
 export const getTypeOrmModuleOptions = () =>
-  ['api-client'].includes(process.env.NODE_ENV)
+  ['api-client'].includes(process.env.NODE_ENV || 'development')
     ? getInMemoryModuleOptions()
     : getTypeOrmDefaultModuleOptions();

@@ -3,7 +3,6 @@
   "extends": "./base.json",
   "display": "Nest.js",
   "compilerOptions": {
-    "module": "commonjs",
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,

@@ -49,12 +49,15 @@
         "api-client#gen:api-client"
       ]
     },
+    "build:tsc-only": {},
     "frontend#build:tsc-only": {
       "dependsOn": [
         "api-client#gen:api-client"
       ]
     },
-    "migration:run": {},
+    "migration:run": {
+      "cache": false
+    },
     "lint": {},
     "test": {
       "dependsOn": [
@@ -69,6 +72,34 @@
       ]
     },
     "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "api#dev": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false,
+      "persistent": true
+    },
+    "notification-service#dev": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false,
+      "persistent": true
+    },
+    "ocr-service#dev": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false,
+      "persistent": true
+    },
+    "processing-service#dev": {
+      "dependsOn": [
+        "^build"
+      ],
       "cache": false,
       "persistent": true
     },

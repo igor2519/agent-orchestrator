@@ -28,16 +28,19 @@ export function DocumentsWorkspace({ customerId }: Props) {
   const [tab, setTab] = useState<TabId>('upload');
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row">
+    <div className="flex flex-col lg:flex-row">
       <section className="w-full lg:w-1/2">
-        <div className="flex gap-1 border-b border-stone-200 px-6" role="tablist">
+        <div
+          className="flex gap-1 border-b border-stone-200 bg-stone-50/60 px-5 py-2"
+          role="tablist"
+        >
           {TABS.map((option) => (
             <button
               aria-selected={tab === option.id}
-              className={`-mb-px border-b-2 px-4 py-2 text-sm ${
+              className={`rounded-lg px-3.5 py-1.5 text-sm transition-colors ${
                 tab === option.id
-                  ? 'border-blue-600 font-medium text-blue-700'
-                  : 'border-transparent text-stone-600'
+                  ? 'bg-white font-medium text-[#1f53a6] shadow-sm ring-1 ring-stone-200'
+                  : 'text-stone-600 hover:bg-white/70 hover:text-stone-900'
               }`}
               key={option.id}
               onClick={() => setTab(option.id)}
@@ -56,7 +59,7 @@ export function DocumentsWorkspace({ customerId }: Props) {
         )}
       </section>
 
-      <section className="w-full border-t border-stone-200 lg:w-1/2 lg:border-l lg:border-t-0">
+      <section className="w-full border-t border-stone-200 bg-stone-50/30 lg:w-1/2 lg:border-l lg:border-t-0">
         <DocumentWatcher />
       </section>
     </div>

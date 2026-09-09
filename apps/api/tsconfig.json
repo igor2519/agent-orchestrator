@@ -2,15 +2,11 @@
   "extends": "tsconfig/nestjs.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "baseUrl": ".",
-    "typeRoots": [
-      "./node_modules/@types",
-      "../../node_modules/@types"
-    ]
+    "paths": {
+      "src/*": ["./src/*"],
+      "test/*": ["./test/*"]
+    },
+    "typeRoots": ["./node_modules/@types", "../../node_modules/@types"]
   },
-  "exclude": [
-    "node_modules",
-    "../../node_modules",
-    "dist"
-  ]
+  "exclude": ["node_modules", "../../node_modules", "dist"]
 }

@@ -95,6 +95,52 @@ instruction, which is what keeps this choreography rather than orchestration.
   processed successfully is not permanently blocked by its own failure. This is a
   separate check from `Idempotency-Key`: that one makes a retried *HTTP call* safe,
   this one makes a repeated *file* safe.
+- **Append-only audit trail** — every state change and operational action is
+  written to `audit_events` in the same transaction as the change itself, so a
+  change cannot commit without its audit line and a line cannot outlive a
+  rolled-back change. See below.
+
+## Audit trail
+
+`GET /documents/:id/audit` returns the document's history, oldest first.
+
+Entries are written from exactly two places, which together cover every way a
+document can change:
+
+| Where | Actions |
+| --- | --- |
+| `DocumentsService` | `DOCUMENT_SUBMITTED`, `DUPLICATE_DETECTED`, `RETRY_REQUESTED` |
+| `DocumentProjectionService` | `STATUS_CHANGED`, `NOTIFICATION_DELIVERED`, `NOTIFICATION_FAILED` |
+
+The projection is the single point where the API reacts to downstream events, so
+hooking it there means a new pipeline event is recorded without touching the
+audit code.
+
+A real submission produces:
+
+```
+seq  action              actor     from        -> to
+1    DOCUMENT_SUBMITTED  API       -           -> RECEIVED
+2    STATUS_CHANGED      PIPELINE  RECEIVED    -> VALIDATED
+3    STATUS_CHANGED      PIPELINE  VALIDATED   -> PROCESSING
+4    STATUS_CHANGED      PIPELINE  PROCESSING  -> COMPLETED
+```
+
+**Append-only is enforced by the database, not by convention.** A trigger rejects
+`UPDATE` and `DELETE` per row, and a second statement-level trigger rejects
+`TRUNCATE` — which row triggers never see and which would otherwise erase the whole
+trail in one statement:
+
+```
+ERROR:  audit_events is append-only; UPDATE is not permitted
+```
+
+Ordering is by the `sequence` bigserial rather than `recorded_at`, because rows
+written inside one transaction share a timestamp.
+
+Delivery outcomes are recorded as their own actions rather than status changes: a
+completed document whose webhook failed is still completed, and flattening both
+into `STATUS_CHANGED` would lose that.
 
 ## Extending it
 
@@ -141,6 +187,7 @@ All HTTP lives on the API service:
 |---|---|
 | `POST /documents` | submit (requires `Idempotency-Key`) |
 | `GET /documents/:id` | status, results, errors, and the full webhook attempt log |
+| `GET /documents/:id/audit` | append-only history of state changes and operational actions |
 | `GET /documents?status=&customerId=&submittedFrom=` | search |
 | `POST /documents/:id/retry` | re-run a failed document |
 | `GET /messaging/outbox/stats`, `/outbox/pending`, `/inbox/:eventId` | operational view of the API's own inbox/outbox |

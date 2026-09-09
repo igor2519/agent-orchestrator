@@ -3,6 +3,8 @@
 import { ExclamationCircleIcon } from '@heroicons/react/24/solid';
 import { useEffect } from 'react';
 
+import { PRIMARY_BUTTON } from 'src/components/buttons';
+
 export default function Error({
   error,
   reset,
@@ -25,7 +27,7 @@ export default function Error({
       </h2>
       <p className="w-full text-center mt-0">{error.message}</p>
       <button
-        className="flex justify-center btn btn-primary"
+        className={PRIMARY_BUTTON}
         onClick={
           // Attempt to recover by trying to re-render the route
           () => {

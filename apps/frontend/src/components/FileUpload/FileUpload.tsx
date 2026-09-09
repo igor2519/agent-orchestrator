@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 
+import { PRIMARY_BUTTON } from 'src/components/buttons';
+
 import type { ChangeEvent, FormEvent } from 'react';
 
 interface UploadResult {
@@ -101,9 +103,14 @@ export function FileUpload({ customerId }: Props) {
         </p>
       </div>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-sm font-medium">File</span>
-        <input accept={ACCEPTED.join(',')} onChange={onSelect} type="file" />
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-stone-700">File</span>
+        <input
+          accept={ACCEPTED.join(',')}
+          className="w-full cursor-pointer rounded-lg border border-dashed border-stone-300 bg-stone-50/60 p-3 text-sm text-stone-600 transition-colors hover:border-[#1f53a6]/40 hover:bg-stone-50 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-stone-700 file:shadow-sm"
+          onChange={onSelect}
+          type="file"
+        />
         {file ? (
           <span className="text-xs text-stone-500">
             {file.name} · {(file.size / 1024).toFixed(1)} KB
@@ -111,16 +118,22 @@ export function FileUpload({ customerId }: Props) {
         ) : null}
       </label>
 
-      <button className="btn btn-primary self-start" disabled={uploading || !file} type="submit">
+      <button
+        className={`${PRIMARY_BUTTON} self-start`}
+        disabled={uploading || !file}
+        type="submit"
+      >
         {uploading ? 'Uploading…' : 'Upload'}
       </button>
 
       {localError ? (
-        <p className="rounded border border-red-300 bg-red-50 p-3 text-sm">{localError}</p>
+        <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {localError}
+        </p>
       ) : null}
 
       {errors ? (
-        <ul className="list-inside list-disc rounded border border-red-300 bg-red-50 p-3 text-sm">
+        <ul className="list-inside list-disc rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {Object.entries(errors).map(([field, message]) => (
             <li key={field}>
               <strong>{field}</strong>: {message}
@@ -130,7 +143,7 @@ export function FileUpload({ customerId }: Props) {
       ) : null}
 
       {result ? (
-        <div className="rounded border border-green-300 bg-green-50 p-3 text-sm">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
           <div>
             Accepted as <code>{result.id}</code> ({result.status})
           </div>

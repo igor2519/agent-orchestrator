@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { MockReceiverController } from './mock-receiver.controller';
-import { MockReceiverService } from './mock-receiver.service';
-import { ReceivedCallback } from './received-callback.entity';
-import { ReceivedCallbacksRepository } from './received-callbacks.repository';
-import { WebhookSignatureService } from './webhook-signature.service';
+import { MockReceiverController } from './controllers/mock-receiver.controller';
+import { ReceivedCallback } from './entities/received-callback.entity';
+import { ReceivedCallbacksRepository } from './repositories/received-callbacks.repository';
+import { MockReceiverService } from './services/mock-receiver.service';
+import { WebhookSignatureService } from './services/webhook-signature.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([ReceivedCallback])],
