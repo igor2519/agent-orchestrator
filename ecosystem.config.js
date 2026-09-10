@@ -1,10 +1,29 @@
+const fs = require('fs');
 const path = require('path');
+const dotenv = require('dotenv');
 
-// Resolved from this file rather than the caller's cwd: PM2 is invoked from
-// several directories and a relative path silently yields no app name.
-require('dotenv').config({ path: path.join(__dirname, 'apps/frontend/.env') });
+/**
+ * Reads an env file without touching this process's environment.
+ *
+ * `dotenv.config()` would assign every key into `process.env` of the PM2 CLI,
+ * and PM2 passes its own environment down to every child it spawns. The
+ * frontend's `PORT=3000` therefore reached the API as well - where its own
+ * `.env` could not correct it, because dotenv never overwrites a variable that
+ * is already set. Both apps then bound the same port.
+ *
+ * `dotenv.parse()` just returns an object, so nothing escapes this file.
+ * Resolved from `__dirname` because PM2 is invoked from several directories.
+ */
+const readEnvFile = (relativePath) => {
+  try {
+    return dotenv.parse(fs.readFileSync(path.join(__dirname, relativePath)));
+  } catch {
+    // The app name is cosmetic; a missing file must not break the deploy.
+    return {};
+  }
+};
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME?.toLowerCase() ?? 'app';
+const appName = readEnvFile('apps/frontend/.env').NEXT_PUBLIC_APP_NAME?.toLowerCase() ?? 'app';
 
 if (!process.env.NVM_DIR) {
   throw new Error('NVM_DIR env variable not found!');

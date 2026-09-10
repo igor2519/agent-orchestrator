@@ -1,0 +1,107 @@
+# Postgres and RabbitMQ for a single-VM production deployment, where the app
+# runs on the host under PM2 (see deploy.sh) and reaches these over loopback.
+#
+#   docker compose --file docker-compose.prod.yml --env-file ../../apps/api/.env \
+#     -p orchestrator up -d
+#
+# Differences from docker-compose.dev.local.yml that matter in production:
+#   - every port is published on 127.0.0.1 only
+#   - named volumes instead of bind mounts
+#   - restart policies, log rotation and resource limits
+#   - no mailhog; real mail goes through Brevo
+
+services:
+  postgres:
+    container_name: orchestrator-postgres
+    image: postgres:16-alpine
+    restart: unless-stopped
+
+    # Published on loopback only. A bare "5432:5432" binds 0.0.0.0, and Docker
+    # writes its own iptables rules that bypass ufw - so the database would be
+    # reachable from the internet even with a firewall that appears to deny it.
+    ports:
+      - '127.0.0.1:${DATABASE_PORT:-5432}:5432'
+
+    environment:
+      # No defaults: an unset credential must fail the deploy, not silently
+      # create a database with a guessable password.
+      POSTGRES_USER: ${DATABASE_USERNAME:?DATABASE_USERNAME is required}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required}
+      POSTGRES_DB: ${DATABASE_NAME:?DATABASE_NAME is required}
+      # Detects silent corruption from a failing disk at the cost of ~2% write
+      # throughput. It can only be set at initdb time, never enabled later.
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Creates ocr_db, processing_db and notification_db. Runs on first boot
+      # only, when the data volume is empty.
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+
+    # The 64MB default is too small once queries go parallel or sort on disk.
+    shm_size: 256mb
+
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+    # Container logs are unbounded by default and will eventually fill the disk.
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' }
+
+    deploy:
+      resources:
+        limits:
+          memory: ${POSTGRES_MEMORY_LIMIT:-1g}
+
+  rabbitmq:
+    container_name: orchestrator-rabbitmq
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    # Stable node name: RabbitMQ stores data under its hostname, so a changing
+    # one orphans the existing queues and messages.
+    hostname: orchestrator-rabbitmq
+
+    ports:
+      - '127.0.0.1:${RABBITMQ_PORT:-5672}:5672'
+      # Management UI on loopback only - reach it with
+      #   ssh -L 15672:127.0.0.1:15672 user@server
+      - '127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'
+
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+      # Publishers are blocked above this, which applies backpressure instead of
+      # letting the broker exhaust host memory.
+      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: ${RABBITMQ_MEMORY_WATERMARK:-0.6}
+
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'check_running']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' }
+
+    deploy:
+      resources:
+        limits:
+          memory: ${RABBITMQ_MEMORY_LIMIT:-1g}
+
+# Named volumes rather than bind mounts: no host uid/gid mismatch, and
+# `docker compose down` cannot wipe them by accident (that needs -v).
+volumes:
+  postgres-data:
+    name: orchestrator-postgres-data
+  rabbitmq-data:
+    name: orchestrator-rabbitmq-data

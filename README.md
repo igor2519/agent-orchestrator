@@ -432,6 +432,35 @@ URL** — the live-service deliverable is outstanding.
 | [packages/infrastructure/terraform](packages/infrastructure/terraform/) | VPC, ECS Fargate for all five services, RDS Postgres, Amazon MQ, S3, ALB + ACM + Route53 | `terraform validate` passes; never applied. Requires a real domain and hosted zone |
 | [deploy.sh](deploy.sh) + [ecosystem.config.js](ecosystem.config.js)     | Single VM: git pull, build, migrate, PM2 reload, release retention                       | Runs; exercised against a stubbed environment, not a real host                     |
 
+### Backing services on the VM
+
+The single-VM path runs Postgres and RabbitMQ in Docker on the host, with the app
+processes under PM2 alongside them:
+
+```sh
+yarn --cwd packages/infrastructure docker:prod    # postgres + rabbitmq
+yarn migration:run
+pm2 startOrReload ecosystem.config.js --env production
+```
+
+[docker-compose.prod.yml](packages/infrastructure/docker-compose.prod.yml) differs
+from the local one where it matters: every port is published on `127.0.0.1` only,
+credentials have no defaults so an unset one fails the deploy, data lives in named
+volumes, and both containers get restart policies, log rotation and memory limits.
+There is no mailhog — production mail goes through Brevo.
+
+Binding to loopback is the important part. A plain `5432:5432` binds `0.0.0.0`, and
+Docker inserts its own iptables rules ahead of ufw, so the database would be
+reachable from the internet even behind a firewall that looks like it denies it.
+Reach the RabbitMQ management UI over an SSH tunnel instead:
+
+```sh
+ssh -L 15672:127.0.0.1:15672 user@server
+```
+
+Not covered: backups. A `pg_dump` cron writing off-box is the minimum before this
+holds real data.
+
 The container path is the intended one: Dockerfiles exist for all five services and
 use `turbo prune` so each image contains only that service and its dependencies.
 

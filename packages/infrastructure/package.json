@@ -12,7 +12,9 @@
   },
   "scripts": {
     "deploy": "ansible-playbook ansible/production-deploy-playbook.yaml",
-    "docker:local": "docker compose --file docker-compose.dev.local.yml --env-file ../../apps/api/.env -p \"postgres-mailhog-local\" up --build -d"
+    "docker:local": "docker compose --file docker-compose.dev.local.yml --env-file ../../apps/api/.env -p \"postgres-mailhog-local\" up --build -d",
+    "docker:prod": "docker compose --file docker-compose.prod.yml --env-file ../../apps/api/.env -p orchestrator up -d",
+    "docker:prod:down": "docker compose -p orchestrator down"
   },
   "lint-staged": {
     "*.(md|json|yml)": "prettier --write"
